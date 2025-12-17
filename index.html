@@ -17,17 +17,43 @@
   <style>
     body { background: #0b1220; }
     .card { border: 0; border-radius: 16px; }
-    .card, .table { background: #0f172a; color: #e5e7eb; }
     .form-control, .form-select { background: #0b1220; color: #e5e7eb; border-color: #243146; }
     .form-control:focus, .form-select:focus { box-shadow: none; border-color: #3b82f6; }
     .btn-primary { border-radius: 12px; }
     .btn-outline-light, .btn-outline-danger { border-radius: 12px; }
-    .table thead th { color: #cbd5e1; }
     .small-muted { color: #94a3b8; }
     .pill { display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.8rem; }
     .pill-ok { background:#064e3b; color:#a7f3d0; }
     .pill-warn { background:#7c2d12; color:#fed7aa; }
     .pill-bad { background:#7f1d1d; color:#fecaca; }
+
+    /* Cards siguen oscuras, tablas en blanco */
+    .card { background: #0f172a; color: #e5e7eb; }
+    .table { background: #ffffff; color: #000000; }
+    
+    /* Encabezados tablas */
+    .table thead th{
+      background: #001A72;
+      color: #ffffff;
+      border-color: #001A72 !important;
+    }
+    
+    /* Celdas */
+    .table tbody td, .table tbody th{
+      color: #000000;
+      background: #ffffff;
+      border-color: #d0d7de;
+    }
+    
+    /* Rayado suave opcional */
+    .table tbody tr:nth-child(even) td,
+    .table tbody tr:nth-child(even) th{
+      background: #f6f8fa;
+    }
+    
+    /* Que el header no se “rompa” con bootstrap */
+    .table thead tr { background: #001A72; }
+   
     code { color:#93c5fd; }
   </style>
 </head>
