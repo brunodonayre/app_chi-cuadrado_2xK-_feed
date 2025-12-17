@@ -8,7 +8,7 @@
   <!-- Bootstrap (solo UI) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-  <!-- jStat: Normal/Chi-square CDF, etc. -->
+  <!-- jStat: Normal/Chi-square CDF, inv, etc. -->
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
   <!-- Chart.js para gráfico -->
@@ -40,7 +40,10 @@
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
           <div>
             <h1 class="h4 mb-1">App 2×K: Alimentación vs No-alimentación</h1>
-            <div class="small-muted">Ingresa conteos por tratamiento. Calcula χ², V de Cramér, residuos z, correcciones (Bonferroni/Holm) y Fisher–Freeman–Halton (Monte Carlo).</div>
+            <div class="small-muted">
+              Ingresa conteos por tratamiento. Calcula χ², V de Cramér, residuos z, correcciones (Bonferroni/Holm),
+              Fisher–Freeman–Halton (Monte Carlo), comparaciones por pares (Fisher 2×2), matriz p-values y potencia estimada.
+            </div>
           </div>
           <div class="d-flex gap-2">
             <button class="btn btn-outline-light" id="btnExample">Cargar ejemplo</button>
@@ -66,7 +69,6 @@
             <thead>
               <tr id="headRow">
                 <th style="min-width:200px">Fila</th>
-                <!-- columnas dinámicas -->
               </tr>
             </thead>
             <tbody>
@@ -102,7 +104,7 @@
         </div>
 
         <div class="small-muted mt-3">
-          Nota: los tests aquí replican tu script en Python para 2×K. Si hay esperados &lt; 1 o demasiados &lt; 5, interpreta con cautela.
+          Nota: si hay esperados &lt; 1 o demasiados &lt; 5, interpreta con cautela.
         </div>
       </div>
     </div>
@@ -139,6 +141,37 @@
       </div>
     </div>
 
+    <!-- NUEVO -->
+    <div class="col-12">
+      <div class="card p-4">
+        <h2 class="h6">6) Comparaciones por pares (Fisher 2×2) + ajuste Holm</h2>
+        <div class="small-muted mb-2">
+          Compara cada par de tratamientos A vs B. p_fisher (sin ajustar) y p_holm (ajustado).
+        </div>
+        <div class="table-responsive" id="pairsWrap"></div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card p-4">
+        <h2 class="h6">7) Matriz de p-values (Fisher 2×2, sin ajustar)</h2>
+        <div class="small-muted mb-2">
+          * indica p &lt; α (según el α ingresado arriba).
+        </div>
+        <div class="table-responsive" id="pMatWrap"></div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card p-4">
+        <h2 class="h6">8) Potencia estimada por comparación (aprox.)</h2>
+        <div class="small-muted mb-2">
+          Estimación aproximada (normal) usando diferencia de proporciones y n observados.
+        </div>
+        <div class="table-responsive" id="powerWrap"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -162,14 +195,16 @@
     return Math.floor(n);
   }
 
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
   // =========================
   // RNG + Hypergeom (para Fisher MC)
   // =========================
-  // xorshift32 simple (determinístico)
   function makeRng(seed){
     let x = (seed >>> 0) || 123456789;
     return function(){
-      // xorshift32
       x ^= x << 13; x >>>= 0;
       x ^= x >> 17; x >>>= 0;
       x ^= x << 5;  x >>>= 0;
@@ -177,10 +212,8 @@
     }
   }
 
-  // log factorial via Stirling + corrección para estabilidad
   function logFactorial(n){
     if (n < 2) return 0;
-    // Stirling con corrección 1/(12n)
     return n*Math.log(n) - n + 0.5*Math.log(2*Math.PI*n) + 1/(12*n) - 1/(360*n*n*n);
   }
 
@@ -189,14 +222,12 @@
     return logFactorial(n) - logFactorial(k) - logFactorial(n-k);
   }
 
-  // PMF hipergeométrica: P(X=x) = [C(K,x) C(N-K, n-x)] / C(N,n)
   function hypergeomPmf(x, K, N, n){
     if (x < 0 || x > K || x > n || n-x > (N-K)) return 0;
     const logp = logChoose(K,x) + logChoose(N-K, n-x) - logChoose(N,n);
     return Math.exp(logp);
   }
 
-  // Muestreo hipergeométrico por "inverse CDF" (OK para tamaños moderados)
   function hypergeomSample(rng, K, N, n){
     const xmin = Math.max(0, n - (N - K));
     const xmax = Math.min(n, K);
@@ -206,7 +237,7 @@
       c += hypergeomPmf(x, K, N, n);
       if (u <= c) return x;
     }
-    return xmax; // fallback por redondeos
+    return xmax;
   }
 
   // =========================
@@ -218,14 +249,12 @@
     const colTotals = Array.from({length: K}, (_,j)=> obs2xK[0][j] + obs2xK[1][j]);
     const N = rowTotals[0] + rowTotals[1];
 
-    // esperados
     const E = [[],[]];
     for (let j=0;j<K;j++){
       E[0][j] = rowTotals[0] * colTotals[j] / N;
       E[1][j] = rowTotals[1] * colTotals[j] / N;
     }
 
-    // chi2
     let chi2 = 0;
     for (let i=0;i<2;i++){
       for (let j=0;j<K;j++){
@@ -237,11 +266,10 @@
     const dof = (2-1)*(K-1);
     const p = 1 - jStat.chisquare.cdf(chi2, dof);
 
-    // Cramér's V (2×K => denom=1)
     const denom = Math.min(2-1, K-1);
     const V = denom > 0 ? Math.sqrt(chi2 / (N * denom)) : NaN;
 
-    return {chi2, p, dof, E, N};
+    return {chi2, p, dof, E, N, V};
   }
 
   function stdResiduals(obs, E){
@@ -284,7 +312,6 @@
     for (let i=0;i<2;i++) for (let j=0;j<K;j++) flat.push({i,j,p:P[i][j]});
     flat.sort((a,b)=>a.p-b.p);
 
-    // step-down: adj_k = max_{t<=k} (m - t + 1) * p_t
     let runningMax = 0;
     for (let k=0;k<m;k++){
       const t = k+1;
@@ -293,13 +320,11 @@
       flat[k].adj = clamp01(runningMax);
     }
 
-    // reconstruir
     const out = [Array(K).fill(0), Array(K).fill(0)];
     for (const el of flat){ out[el.i][el.j] = el.adj; }
     return out;
   }
 
-  // Fisher–Freeman–Halton MC (2×K): preserva márgenes
   function fisherMC2xK(obs2xK, nSim=100000, seed=123){
     const K = obs2xK[0].length;
     const colTotals = Array.from({length: K}, (_,j)=> obs2xK[0][j] + obs2xK[1][j]);
@@ -335,6 +360,197 @@
   }
 
   // =========================
+  // NUEVO: Fisher exacto 2×2 dos colas + OR
+  // =========================
+  function fisherExactTwoSided(a,b,c,d){
+    const r1 = a + b, r2 = c + d;
+    const c1 = a + c, c2 = b + d;
+    const n  = r1 + r2;
+
+    // OR con corrección 0.5 (evita división por cero)
+    const OR = ((a+0.5)*(d+0.5))/((b+0.5)*(c+0.5));
+
+    const amin = Math.max(0, r1 - c2);
+    const amax = Math.min(r1, c1);
+
+    function logHyp(a0){
+      return logChoose(c1, a0) + logChoose(c2, r1-a0) - logChoose(n, r1);
+    }
+
+    const pObs = Math.exp(logHyp(a));
+    let pTwo = 0;
+    for (let x=amin; x<=amax; x++){
+      const px = Math.exp(logHyp(x));
+      if (px <= pObs + 1e-12) pTwo += px;
+    }
+    return {OR, p: clamp01(pTwo)};
+  }
+
+  function holm1D(pvals){
+    const m = pvals.length;
+    const order = [...pvals.keys()].sort((i,j)=>pvals[i]-pvals[j]);
+    let runningMax = 0;
+    const adj = new Array(m).fill(1);
+    for (let k=0;k<m;k++){
+      const i = order[k];
+      const factor = (m - k);
+      runningMax = Math.max(runningMax, pvals[i]*factor);
+      adj[i] = clamp01(runningMax);
+    }
+    return adj;
+  }
+
+  function pairwiseComparisons(names, obs, alpha){
+    const K = names.length;
+    const feed = obs[0], nofeed = obs[1];
+    const totals = names.map((_,j)=> feed[j] + nofeed[j]);
+    const props = names.map((_,j)=> feed[j] / totals[j]);
+
+    const rows = [];
+    const pList = [];
+
+    for (let i=0;i<K;i++){
+      for (let j=i+1;j<K;j++){
+        const a = feed[i], b = nofeed[i], c = feed[j], d = nofeed[j];
+        const fe = fisherExactTwoSided(a,b,c,d);
+        pList.push(fe.p);
+
+        rows.push({
+          A: names[i], B: names[j],
+          n_A: totals[i], n_B: totals[j],
+          A_feed: a, A_no: b, B_feed: c, B_no: d,
+          prop_A: props[i], prop_B: props[j],
+          diff_prop: (props[i] - props[j]),
+          odds_ratio: fe.OR,
+          p_fisher: fe.p
+        });
+      }
+    }
+
+    const pHolm = holm1D(pList);
+    rows.forEach((r, idx) => r.p_holm = pHolm[idx]);
+    rows.forEach(r=>{
+      r.significativo = (r.p_holm < alpha) ? "Sí" : "No";
+      r.tendencia = (r.p_fisher < 0.10) ? "Sí" : "No";
+    });
+
+    rows.sort((x,y)=> x.p_fisher - y.p_fisher);
+
+    const pMat = Array.from({length:K}, ()=> Array(K).fill(1));
+    rows.forEach(r=>{
+      const i = names.indexOf(r.A);
+      const j = names.indexOf(r.B);
+      pMat[i][j] = r.p_fisher;
+      pMat[j][i] = r.p_fisher;
+    });
+
+    // Potencia (aprox normal, bilateral)
+    const powerRows = [];
+    for (let i=0;i<K;i++){
+      for (let j=i+1;j<K;j++){
+        const p1 = props[i], p2 = props[j];
+        const n1 = totals[i], n2 = totals[j];
+
+        const se = Math.sqrt((p1*(1-p1))/n1 + (p2*(1-p2))/n2);
+        const zAlpha = jStat.normal.inv(1 - alpha/2, 0, 1);
+
+        const delta = Math.abs(p1 - p2);
+        const zEff = (se > 0) ? (delta / se) : 0;
+
+        const power = 1 - jStat.normal.cdf(zAlpha - zEff, 0, 1) + jStat.normal.cdf(-zAlpha - zEff, 0, 1);
+
+        powerRows.push({
+          A: names[i], B: names[j],
+          prop_A: p1, prop_B: p2,
+          diff_pp: (p1 - p2) * 100,
+          power: clamp01(power)
+        });
+      }
+    }
+    powerRows.sort((x,y)=> y.power - x.power);
+
+    return {rows, pMat, powerRows};
+  }
+
+  function renderPairsTable(rows, alpha){
+    if (!rows.length) return '<div class="small-muted">No hay pares para comparar.</div>';
+
+    const header = `
+      <thead><tr>
+        <th>A</th><th>B</th>
+        <th>prop_A</th><th>prop_B</th><th>Δ pp</th>
+        <th>Odds Ratio</th>
+        <th>p_fisher</th><th>p_holm</th>
+        <th>Significativo (α=${alpha})</th>
+        <th>Tendencia p&lt;0.10</th>
+      </tr></thead>`;
+
+    const body = rows.map(r=>{
+      const propA = `${(r.prop_A*100).toFixed(1)}% (${r.A_feed}/${r.n_A})`;
+      const propB = `${(r.prop_B*100).toFixed(1)}% (${r.B_feed}/${r.n_B})`;
+      const dpp = (r.diff_prop*100).toFixed(2);
+
+      return `<tr>
+        <td>${escapeHtml(r.A)}</td>
+        <td>${escapeHtml(r.B)}</td>
+        <td>${propA}</td>
+        <td>${propB}</td>
+        <td>${dpp}</td>
+        <td>${fmt(r.odds_ratio,3)}</td>
+        <td>${fmtP(r.p_fisher)}</td>
+        <td>${fmtP(r.p_holm)}</td>
+        <td><b>${r.significativo}</b></td>
+        <td>${r.tendencia}</td>
+      </tr>`;
+    }).join('');
+
+    return `<table class="table table-sm align-middle">${header}<tbody>${body}</tbody></table>`;
+  }
+
+  function renderPMatrix(names, pMat, alpha){
+    const K = names.length;
+    let html = '<table class="table table-sm align-middle">';
+    html += '<thead><tr><th></th>' + names.map(n=>`<th>${escapeHtml(n)}</th>`).join('') + '</tr></thead>';
+    html += '<tbody>';
+    for (let i=0;i<K;i++){
+      html += `<tr><th>${escapeHtml(names[i])}</th>`;
+      for (let j=0;j<K;j++){
+        const p = pMat[i][j];
+        const star = (i!==j && p < alpha) ? ' <b>*</b>' : '';
+        html += `<td>${fmt(p,4)}${star}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function renderPowerTable(rows){
+    if (!rows.length) return '<div class="small-muted">No hay potencia para calcular.</div>';
+
+    const header = `
+      <thead><tr>
+        <th>A</th><th>B</th>
+        <th>prop_A</th><th>prop_B</th>
+        <th>Δ pp</th>
+        <th>Potencia (aprox.)</th>
+      </tr></thead>`;
+
+    const body = rows.map(r=>{
+      return `<tr>
+        <td>${escapeHtml(r.A)}</td>
+        <td>${escapeHtml(r.B)}</td>
+        <td>${(r.prop_A*100).toFixed(1)}%</td>
+        <td>${(r.prop_B*100).toFixed(1)}%</td>
+        <td>${r.diff_pp.toFixed(1)}</td>
+        <td><b>${r.power.toFixed(2)}</b></td>
+      </tr>`;
+    }).join('');
+
+    return `<table class="table table-sm align-middle">${header}<tbody>${body}</tbody></table>`;
+  }
+
+  // =========================
   // UI Dinámica
   // =========================
   const headRow = document.getElementById('headRow');
@@ -344,34 +560,30 @@
   const btnRemoveCol = document.getElementById('btnRemoveCol');
 
   let chart = null;
-  let lastSummaryRows = null; // para CSV
+  let lastSummaryRows = null;
 
   function colCount(){
-    // 1 header fijo (Fila) + dinámicos
     return headRow.querySelectorAll('th.colhdr').length;
   }
 
   function addColumn(name="Tratamiento"){
     const k = colCount() + 1;
 
-    // header
     const th = document.createElement('th');
     th.className = 'colhdr';
     th.style.minWidth = '240px';
     th.innerHTML = `
       <div class="d-flex flex-column gap-1">
-        <input class="form-control form-control-sm" data-role="colname" value="${name} ${k}" />
+        <input class="form-control form-control-sm" data-role="colname" value="${escapeHtml(name)} ${k}" />
         <div class="small-muted">(conteos enteros ≥ 0)</div>
       </div>
     `;
     headRow.appendChild(th);
 
-    // celdas alimentación
     const td1 = document.createElement('td');
     td1.innerHTML = `<input class="form-control form-control-sm" data-role="feed" type="number" min="0" step="1" value="0" />`;
     rowFeed.appendChild(td1);
 
-    // celdas no alimentación
     const td2 = document.createElement('td');
     td2.innerHTML = `<input class="form-control form-control-sm" data-role="nofeed" type="number" min="0" step="1" value="0" />`;
     rowNoFeed.appendChild(td2);
@@ -379,33 +591,32 @@
 
   function removeLastColumn(){
     const k = colCount();
-    if (k <= 2) return; // deja mínimo 2 tratamientos
+    if (k <= 2) return;
     headRow.removeChild(headRow.lastElementChild);
     rowFeed.removeChild(rowFeed.lastElementChild);
     rowNoFeed.removeChild(rowNoFeed.lastElementChild);
   }
 
   function clearAll(){
-    // deja 4 columnas por defecto
     while (colCount() > 4) removeLastColumn();
     while (colCount() < 4) addColumn('Tratamiento');
 
-    // reset nombres
     [...headRow.querySelectorAll('input[data-role="colname"]')].forEach((el, idx)=> el.value = `Tratamiento ${idx+1}`);
-    // reset valores
     [...document.querySelectorAll('input[data-role="feed"], input[data-role="nofeed"]')].forEach(el => el.value = 0);
 
     document.getElementById('globalOut').innerHTML = '';
     document.getElementById('expectedWrap').innerHTML = '';
     document.getElementById('residWrap').innerHTML = '';
     document.getElementById('propOut').innerHTML = '';
+    document.getElementById('pairsWrap').innerHTML = '';
+    document.getElementById('pMatWrap').innerHTML = '';
+    document.getElementById('powerWrap').innerHTML = '';
     lastSummaryRows = null;
 
     if (chart){ chart.destroy(); chart = null; }
   }
 
   function loadExample(){
-    // 4 columnas (tu ejemplo)
     while (colCount() > 4) removeLastColumn();
     while (colCount() < 4) addColumn('');
 
@@ -428,24 +639,20 @@
     const feed = [...rowFeed.querySelectorAll('input[data-role="feed"]')].map(x => safeInt(x.value));
     const nofeed = [...rowNoFeed.querySelectorAll('input[data-role="nofeed"]')].map(x => safeInt(x.value));
 
-    // validar mínimo
     if (names.length < 2) throw new Error('Necesitas al menos 2 tratamientos.');
 
     const obs = [feed, nofeed];
     const N = sum(feed) + sum(nofeed);
     if (N === 0) throw new Error('La tabla está vacía (N=0).');
 
-    // evita columnas con total 0 (rompe esperados)
     const colTotals = names.map((_,j)=> feed[j] + nofeed[j]);
     if (colTotals.some(t => t === 0)){
       throw new Error('Hay tratamientos con total 0. Llena al menos una celda por tratamiento.');
     }
-
     return {names, obs};
   }
 
   function renderExpected(names, E){
-    const K = names.length;
     let html = '<table class="table table-sm align-middle">';
     html += '<thead><tr><th>Fila</th>' + names.map(n=>`<th>${escapeHtml(n)}</th>`).join('') + '</tr></thead>';
     html += '<tbody>';
@@ -461,18 +668,12 @@
     function rowHtml(label, i){
       let cells = '';
       for (let j=0;j<K;j++){
-        const z = Z[i][j];
-        const p = P[i][j];
-        const pb = Pbonf[i][j];
-        const ph = Pholm[i][j];
-
-        const sig = (p < 0.05) ? 'warn' : 'ok';
         cells += `
           <td>
-            <div><span class="small-muted">z</span> ${fmt(z,2)}</div>
-            <div><span class="small-muted">p</span> ${fmt(p,3)}</div>
-            <div><span class="small-muted">p_bonf</span> ${fmt(pb,3)}</div>
-            <div><span class="small-muted">p_holm</span> ${fmt(ph,3)}</div>
+            <div><span class="small-muted">z</span> ${fmt(Z[i][j],2)}</div>
+            <div><span class="small-muted">p</span> ${fmt(P[i][j],3)}</div>
+            <div><span class="small-muted">p_bonf</span> ${fmt(Pbonf[i][j],3)}</div>
+            <div><span class="small-muted">p_holm</span> ${fmt(Pholm[i][j],3)}</div>
           </td>
         `;
       }
@@ -488,15 +689,10 @@
     return html;
   }
 
-  function escapeHtml(s){
-    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-
   function renderGlobal({chi2, p, dof, V, pctBelow5, anyBelow1, fisher}){
     const warn1 = anyBelow1 ? pill('Esperado < 1: Sí', 'bad') : pill('Esperado < 1: No', 'ok');
     const warn5 = (pctBelow5 > 20) ? pill(`Esperados < 5: ${pctBelow5.toFixed(1)}%`, 'warn') : pill(`Esperados < 5: ${pctBelow5.toFixed(1)}%`, 'ok');
 
-    // Etiquetas amigables (interpretación simple)
     const labelP = (pv) => {
       if (!Number.isFinite(pv)) return 'No disponible.';
       if (pv < 0.001) return 'Diferencias MUY claras (casi seguro no es azar).';
@@ -518,10 +714,6 @@
       return '✅ Los supuestos del test se cumplen bien.';
     };
 
-    const vTxt = Number.isFinite(V)
-      ? `${fmt(V,3)} <span class="small-muted">(≈0.1 pequeño, 0.3 mediano, 0.5 grande)</span>`
-      : 'NA';
-
     return `
       <div class="d-flex flex-wrap gap-2 mb-2">${warn1} ${warn5}</div>
       <div class="small-muted mb-3">${labelExpected()}</div>
@@ -530,7 +722,7 @@
         <div class="col-md-6">
           <div class="small-muted">Chi-cuadrado</div>
           <div class="h5 mb-0">χ²(${dof}) = ${fmt(chi2,3)}</div>
-          <div class="small-muted">Qué indica: mientras más grande, más distinta es la alimentación entre tratamientos.</div>
+          <div class="small-muted">Más grande = más distinta la alimentación entre tratamientos.</div>
         </div>
 
         <div class="col-md-6">
@@ -541,14 +733,14 @@
 
         <div class="col-md-6 mt-2">
           <div class="small-muted">V de Cramér</div>
-          <div class="h6 mb-0">${vTxt}</div>
+          <div class="h6 mb-0">${fmt(V,3)} <span class="small-muted">(≈0.1 pequeño, 0.3 mediano, 0.5 grande)</span></div>
           <div class="small-muted">${labelV(V)}</div>
         </div>
 
         <div class="col-md-6 mt-2">
           <div class="small-muted">Fisher–Freeman–Halton (MC)</div>
           <div class="h6 mb-0">χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}</div>
-          <div class="small-muted">Confirmación “más estricta”: si también sale significativo, la conclusión es bien sólida.</div>
+          <div class="small-muted">Confirmación “más estricta”: si también sale significativo, la conclusión es sólida.</div>
         </div>
       </div>
     `;
@@ -559,18 +751,15 @@
     const totals = names.map((_,j)=> obs[0][j] + obs[1][j]);
     const props = names.map((_,j)=> feed[j] / totals[j]);
 
-    // orden desc por proporción
     const idx = props.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v).map(x=>x.i);
 
-    const rows = idx.map(j => ({
+    return idx.map(j => ({
       tratamiento: names[j],
       prop_alim: props[j],
       z_alim: Z[0][j],
       p_alim: P[0][j],
       p_holm_alim: Pholm[0][j]
     }));
-
-    return rows;
   }
 
   function renderProps(rows){
@@ -614,7 +803,7 @@
           },
           tooltip: {
             callbacks: {
-              label: (ctx) => ` ${ (ctx.raw*100).toFixed(1) }%`
+              label: (ctx) => ` ${(ctx.raw*100).toFixed(1)}%`
             }
           }
         },
@@ -670,26 +859,23 @@
     try {
       const {names, obs} = readTable();
 
-      const {chi2, p, dof, E, N} = chiSquare2xK(obs);
-      const V = Math.sqrt(chi2 / (N * Math.min(1, names.length-1))); // 2×K => denom=1
+      const alpha = Math.min(0.50, Math.max(0.001, Number(document.getElementById('alpha').value) || 0.05));
 
-      // chequeo esperados
+      const {chi2, p, dof, E, N, V} = chiSquare2xK(obs);
+
       const flatE = [...E[0], ...E[1]];
       const pctBelow5 = flatE.filter(x => x < 5).length / flatE.length * 100;
       const anyBelow1 = flatE.some(x => x < 1);
 
-      // residuos y p
       const Z = stdResiduals(obs, E);
       const P = pvalsFromZ(Z);
       const Pbonf = bonferroni(P);
       const Pholm = holm(P);
 
-      // Fisher MC
       const nSim = Math.max(1000, safeInt(document.getElementById('nSim').value));
       const seed = safeInt(document.getElementById('seed').value);
       const fisher = fisherMC2xK(obs, nSim, seed);
 
-      // render
       document.getElementById('globalOut').innerHTML = renderGlobal({chi2, p, dof, V, pctBelow5, anyBelow1, fisher});
       document.getElementById('expectedWrap').innerHTML = renderExpected(names, E);
       document.getElementById('residWrap').innerHTML = renderResiduals(names, Z, P, Pbonf, Pholm);
@@ -700,8 +886,15 @@
       document.getElementById('propOut').innerHTML = renderProps(summaryRows);
       drawChart(summaryRows, `Fisher–Freeman–Halton (MC): χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}`);
 
+      // NUEVO: pares + matriz + potencia
+      const pairs = pairwiseComparisons(names, obs, alpha);
+      document.getElementById('pairsWrap').innerHTML = renderPairsTable(pairs.rows, alpha);
+      document.getElementById('pMatWrap').innerHTML  = renderPMatrix(names, pairs.pMat, alpha);
+      document.getElementById('powerWrap').innerHTML = renderPowerTable(pairs.powerRows);
+
     } catch (err){
       alert(err?.message ?? String(err));
+      console.error(err);
     }
   }
 
@@ -719,12 +912,8 @@
   });
 
   // init
-  addColumn('Tratamiento');
-  addColumn('Tratamiento');
-  addColumn('Tratamiento');
-  addColumn('Tratamiento');
+  clearAll();
   loadExample();
 </script>
 </body>
 </html>
- 
