@@ -53,6 +53,35 @@
     
     /* Que el header no se “rompa” con bootstrap */
     .table thead tr { background: #001A72; }
+
+    /*Visualizacion de lineas verticales*/
+    /* Líneas verticales bien visibles */
+    .table {
+      border-collapse: separate;   /* permite ver bien líneas */
+      border-spacing: 0;
+    }
+    
+    .table th, .table td{
+      border-right: 2px solid #9aa4b2 !important;  /* vertical */
+      border-bottom: 1px solid #c7ced8 !important; /* horizontal */
+    }
+    
+    /* Borde izquierdo de la primera columna */
+    .table tr > *:first-child{
+      border-left: 2px solid #9aa4b2 !important;
+    }
+    
+    /* Borde superior del encabezado */
+    .table thead tr > *{
+      border-top: 2px solid #001A72 !important;
+    }
+    
+    /* Opcional: hover para lectura */
+    .table tbody tr:hover td,
+    .table tbody tr:hover th{
+      background: #eef2ff;
+    }
+
    
     code { color:#93c5fd; }
   </style>
