@@ -81,16 +81,22 @@
         </div>
 
         <div class="row g-3 mt-1">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Simulaciones Fisher MC</label>
             <input class="form-control" id="nSim" type="number" min="1000" step="1000" value="100000" />
             <div class="small-muted">Más simulaciones = p más estable (pero más lento).</div>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Semilla</label>
             <input class="form-control" id="seed" type="number" step="1" value="123" />
+            <div class="small-muted">Cambia la semilla si quieres otra corrida reproducible.</div>
           </div>
-          <div class="col-md-4 d-flex align-items-end">
+          <div class="col-md-3">
+            <label class="form-label">Nivel de significancia (α)</label>
+            <input class="form-control" id="alpha" type="number" min="0.001" max="0.50" step="0.01" value="0.05" />
+            <div class="small-muted">Usual: 0.05 (5%), opcional: 0.10 o 0.15.</div>
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
             <button class="btn btn-primary w-100" id="btnRun">Calcular</button>
           </div>
         </div>
@@ -490,28 +496,59 @@
     const warn1 = anyBelow1 ? pill('Esperado < 1: Sí', 'bad') : pill('Esperado < 1: No', 'ok');
     const warn5 = (pctBelow5 > 20) ? pill(`Esperados < 5: ${pctBelow5.toFixed(1)}%`, 'warn') : pill(`Esperados < 5: ${pctBelow5.toFixed(1)}%`, 'ok');
 
+    // Etiquetas amigables (interpretación simple)
+    const labelP = (pv) => {
+      if (!Number.isFinite(pv)) return 'No disponible.';
+      if (pv < 0.001) return 'Diferencias MUY claras (casi seguro no es azar).';
+      if (pv < 0.05)  return 'Hay diferencias (p < 0.05).';
+      return 'No se detectan diferencias claras entre tratamientos.';
+    };
+
+    const labelV = (v) => {
+      if (!Number.isFinite(v)) return 'No disponible.';
+      if (v < 0.10) return 'Impacto pequeño (cambio leve).';
+      if (v < 0.30) return 'Impacto bajo a moderado.';
+      if (v < 0.50) return 'Impacto moderado (relevante).';
+      return 'Impacto grande (muy marcado).';
+    };
+
+    const labelExpected = () => {
+      if (anyBelow1) return '⚠️ Hay celdas con esperado < 1: interpretar con cautela.';
+      if (pctBelow5 > 20) return '⚠️ Muchos esperados < 5: interpretar con cautela.';
+      return '✅ Los supuestos del test se cumplen bien.';
+    };
+
     const vTxt = Number.isFinite(V)
       ? `${fmt(V,3)} <span class="small-muted">(≈0.1 pequeño, 0.3 mediano, 0.5 grande)</span>`
       : 'NA';
 
     return `
       <div class="d-flex flex-wrap gap-2 mb-2">${warn1} ${warn5}</div>
+      <div class="small-muted mb-3">${labelExpected()}</div>
+
       <div class="row g-2">
         <div class="col-md-6">
           <div class="small-muted">Chi-cuadrado</div>
           <div class="h5 mb-0">χ²(${dof}) = ${fmt(chi2,3)}</div>
+          <div class="small-muted">Qué indica: mientras más grande, más distinta es la alimentación entre tratamientos.</div>
         </div>
+
         <div class="col-md-6">
           <div class="small-muted">p-value (χ²)</div>
           <div class="h5 mb-0">p = ${fmtP(p)}</div>
+          <div class="small-muted">${labelP(p)}</div>
         </div>
+
         <div class="col-md-6 mt-2">
           <div class="small-muted">V de Cramér</div>
           <div class="h6 mb-0">${vTxt}</div>
+          <div class="small-muted">${labelV(V)}</div>
         </div>
+
         <div class="col-md-6 mt-2">
           <div class="small-muted">Fisher–Freeman–Halton (MC)</div>
           <div class="h6 mb-0">χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}</div>
+          <div class="small-muted">Confirmación “más estricta”: si también sale significativo, la conclusión es bien sólida.</div>
         </div>
       </div>
     `;
