@@ -1156,25 +1156,36 @@
     const ext = file.name.toLowerCase().split('.').pop();
 
     // CSV
+    // CSV
     if (ext === 'csv'){
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
-      const header = lines[0].split(',').map(x=>x.trim());
+
+      // Detecta delimitador: ; si aparece más que ,
+      const commaCount = (lines[0].match(/,/g) || []).length;
+      const semiCount  = (lines[0].match(/;/g) || []).length;
+      const delim = semiCount > commaCount ? ';' : ',';
+
+      const header = lines[0].split(delim).map(x=>x.trim());
       const names = header.slice(1);
 
       const map = {alimentacion: [], excitacion: [], inmovil: []};
+
       for (let i=1;i<lines.length;i++){
-        const parts = lines[i].split(',').map(x=>x.trim());
+        const parts = lines[i].split(delim).map(x=>x.trim());
         const estado = normalizeEstado(parts[0]);
         const vals = parts.slice(1).map(v => safeInt(v));
         if (map[estado]) map[estado] = vals;
       }
+
       if (!map.alimentacion.length || !map.excitacion.length || !map.inmovil.length){
         throw new Error('El CSV debe tener 3 filas: alimentación, excitación e inmovil.');
       }
+
       setTableFrom3xK(names, map.alimentacion, map.excitacion, map.inmovil);
       return;
     }
+
 
     // Excel xlsx/xls
     const buf = await file.arrayBuffer();
