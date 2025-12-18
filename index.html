@@ -1175,15 +1175,52 @@
     setTableFrom3xK(names, map.alimentacion, map.excitacion, map.inmovil);
   }
 
+  function obs2KFrom3K(){
+    const {names, A, E, I} = read3K();
+    const nofeed = names.map((_,j)=> safeInt(E[j]) + safeInt(I[j]));
+    const obs = [A.map(safeInt), nofeed.map(safeInt)];
+    return {names, obs};
+  }
+
+  function sync2KUIFrom3K(names, obs){
+    while (colCount() > names.length) removeLastColumn();
+    while (colCount() < names.length) addColumn('Tratamiento');
+
+    [...headRow.querySelectorAll('input[data-role="colname"]')]
+      .forEach((el, j)=> el.value = names[j] ?? `Tratamiento ${j+1}`);
+
+    [...rowFeed.querySelectorAll('input[data-role="feed"]')]
+      .forEach((el, j)=> el.value = obs[0][j] ?? 0);
+
+    [...rowNoFeed.querySelectorAll('input[data-role="nofeed"]')]
+      .forEach((el, j)=> el.value = obs[1][j] ?? 0);
+  }
+
+
+
+
   // =========================
   // Ejecutar análisis
   // =========================
+// 3) Reemplaza COMPLETO tu run() por este:
   async function run(){
     try {
-      const {names, obs} = readTable();
+      // 🔥 Fuente ÚNICA de verdad: la tabla 3×K
+      const {names, obs} = obs2KFrom3K();
+
+      // sincroniza visualmente 2×K (para que se vea “empalmado”)
+      sync2KUIFrom3K(names, obs);
+
+      // validaciones mínimas
+      if (names.length < 2) throw new Error('Necesitas al menos 2 tratamientos.');
+      const N = sum(obs[0]) + sum(obs[1]);
+      if (N === 0) throw new Error('La tabla está vacía (N=0).');
+      const colTotals = names.map((_,j)=> obs[0][j] + obs[1][j]);
+      if (colTotals.some(t => t === 0)) throw new Error('Hay tratamientos con total 0.');
+
       const alpha = Math.min(0.50, Math.max(0.001, Number(document.getElementById('alpha').value) || 0.05));
 
-      const {chi2, p, dof, E, V} = chiSquare2xK(obs);
+      const {chi2, p, dof, E, N:NN, V} = chiSquare2xK(obs);
 
       const flatE = [...E[0], ...E[1]];
       const pctBelow5 = flatE.filter(x => x < 5).length / flatE.length * 100;
