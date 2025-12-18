@@ -254,6 +254,11 @@
                   <canvas id="behavChart"></canvas>
                 </div>
 
+                <!-- ✅ AQUÍ VA EL NUEVO GRÁFICO DE ÁREAS -->
+                <div class="mt-4 chart-wrap">
+                  <canvas id="areaChart"></canvas>
+                </div>
+
                 <div class="d-flex gap-2 mt-3">
                   <button class="btn btn-outline-light" id="btnDownloadCSV">Descargar resumen CSV</button>
                 </div>
@@ -678,7 +683,7 @@
         });
       }
     }
-    powerRows.sort((x,y)=> y.power - x.power);
+    powerRows.sort((x,y)=> y.power - y.power);
 
     return {rows, pMat, powerRows};
   }
@@ -774,6 +779,7 @@
 
   let chart = null;       // barChart
   let behavChart = null;  // behavChart
+  let areaChart = null;   // ✅ areaChart
   let lastSummaryRows = null;
 
   function colCount(){
@@ -835,6 +841,7 @@
 
     if (chart){ chart.destroy(); chart = null; }
     if (behavChart){ behavChart.destroy(); behavChart = null; }
+    if (areaChart){ areaChart.destroy(); areaChart = null; }
   }
 
   function loadExample(){
@@ -1011,47 +1018,24 @@
 
     chart = new Chart(ctx, {
       type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Proporción de Alimentación',
-          data,
-          borderWidth: 1
-        }]
-      },
+      data: { labels, datasets: [{ label: 'Proporción de Alimentación', data, borderWidth: 1 }] },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: {
-            display: true,
-            labels: { color: '#111827', font: { size: 13 } }
-          },
+          legend: { display: true, labels: { color: '#111827', font: { size: 13 } } },
           title: {
             display: true,
-            text: [
-              'Proporción de Alimentación por Tratamiento',
-              fisherLine
-            ],
+            text: ['Proporción de Alimentación por Tratamiento', fisherLine],
             color: '#111827',
             font: { size: 14, weight: 'bold' },
             padding: { bottom: 10 }
           },
-          tooltip: {
-            callbacks: { label: (ctx) => ` ${(ctx.raw*100).toFixed(1)}%` }
-          }
+          tooltip: { callbacks: { label: (ctx) => ` ${(ctx.raw*100).toFixed(1)}%` } }
         },
         scales: {
-          y: {
-            beginAtZero: true,
-            max: 1,
-            ticks: { callback: (v) => `${Math.round(v*100)}%`, color: '#111827' },
-            grid: { color: '#d1d5db' }
-          },
-          x: {
-            ticks: { color: '#111827', maxRotation: 20, minRotation: 20 },
-            grid: { display: false }
-          }
+          y: { beginAtZero: true, max: 1, ticks: { callback: (v) => `${Math.round(v*100)}%`, color: '#111827' }, grid: { color: '#d1d5db' } },
+          x: { ticks: { color: '#111827', maxRotation: 20, minRotation: 20 }, grid: { display: false } }
         }
       }
     });
@@ -1091,6 +1075,72 @@
         },
         scales:{
           x:{ stacked:true, ticks:{ color:'#111827', maxRotation:20, minRotation:20 }, grid:{ display:false } },
+          y:{ stacked:true, min:0, max:1, ticks:{ callback:(v)=>`${Math.round(v*100)}%`, color:'#111827' }, grid:{ color:'#e5e7eb' } }
+        }
+      }
+    });
+  }
+
+  // =========================
+  // ✅ ÁREAS (stackplot-like) - EJEMPLO
+  // =========================
+  // Estructura: { Tratamiento: {dia: [alim, excit, immob], ...}, ... }
+  const behavExample = {
+    "Katal_v8":  {5:[3,6,3], 10:[1,7,4], 15:[1,10,1], 20:[1,9,2], 25:[1,10,1], 30:[1,8,1]},
+    "Katal_v9":  {5:[3,5,4], 10:[3,7,2], 15:[2,9,1], 20:[4,6,2], 25:[1,6,5], 30:[1,6,5]},
+    "Katal_v10": {5:[3,6,3], 10:[2,9,1], 15:[1,9,2], 20:[1,8,3], 25:[2,5,5], 30:[2,6,4]},
+  };
+
+  // Render de área APILADA (100%) por día, promediando todos los tratamientos del ejemplo
+  function drawAreaChartFromExample(exampleObj){
+    const canvas = document.getElementById('areaChart');
+    if (!canvas) return;
+
+    // junta todos los días
+    const daySet = new Set();
+    Object.values(exampleObj).forEach(byDay => Object.keys(byDay).forEach(d => daySet.add(Number(d))));
+    const days = Array.from(daySet).sort((a,b)=>a-b);
+
+    // promedio de proporciones por día (para no “reventar” con muchas líneas)
+    const pA = [], pE = [], pI = [];
+    for (const d of days){
+      let sA=0, sE=0, sI=0, n=0;
+      for (const trt of Object.keys(exampleObj)){
+        const v = exampleObj[trt][d];
+        if (!v) continue;
+        const [a,e,i] = v;
+        const tot = a+e+i;
+        if (tot<=0) continue;
+        sA += a/tot; sE += e/tot; sI += i/tot;
+        n++;
+      }
+      pA.push(n? sA/n : 0);
+      pE.push(n? sE/n : 0);
+      pI.push(n? sI/n : 0);
+    }
+
+    if (areaChart) areaChart.destroy();
+
+    areaChart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: days.map(String),
+        datasets: [
+          { label:'Alimentación', data:pA, fill:true, tension:0.25, pointRadius:2, borderWidth:2, stack:'sA' },
+          { label:'Excitación',   data:pE, fill:true, tension:0.25, pointRadius:2, borderWidth:2, stack:'sA' },
+          { label:'Inmóvil',      data:pI, fill:true, tension:0.25, pointRadius:2, borderWidth:2, stack:'sA' },
+        ]
+      },
+      options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          title:{ display:true, text:'Áreas apiladas por día (100%) – ejemplo', color:'#111827', font:{size:14, weight:'bold'} },
+          legend:{ labels:{ color:'#111827' } },
+          tooltip:{ callbacks:{ label:(ctx)=>` ${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%` } }
+        },
+        scales:{
+          x:{ ticks:{ color:'#111827' }, grid:{ display:false } },
           y:{ stacked:true, min:0, max:1, ticks:{ callback:(v)=>`${Math.round(v*100)}%`, color:'#111827' }, grid:{ color:'#e5e7eb' } }
         }
       }
@@ -1156,12 +1206,10 @@
     const ext = file.name.toLowerCase().split('.').pop();
 
     // CSV
-    // CSV
     if (ext === 'csv'){
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
 
-      // Detecta delimitador: ; si aparece más que ,
       const commaCount = (lines[0].match(/,/g) || []).length;
       const semiCount  = (lines[0].match(/;/g) || []).length;
       const delim = semiCount > commaCount ? ';' : ',';
@@ -1185,7 +1233,6 @@
       setTableFrom3xK(names, map.alimentacion, map.excitacion, map.inmovil);
       return;
     }
-
 
     // Excel xlsx/xls
     const buf = await file.arrayBuffer();
@@ -1250,6 +1297,9 @@
 
       // Gráfico 2: 100% apilado 3 estados
       drawBehaviorChartFrom3K_UI(names, raw3.feed, raw3.excit, raw3.immob);
+
+      // ✅ Gráfico 3: Áreas apiladas (ejemplo)
+      drawAreaChartFromExample(behavExample);
 
       // Pares y potencia
       const pairs = pairwiseComparisons(names, obs, alpha);
