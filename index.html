@@ -254,6 +254,11 @@
                   <canvas id="behavChart"></canvas>
                 </div>
 
+                <div class="mt-4">
+                  <div class="small-muted mb-2">Áreas acumuladas por tratamiento (tiempo en eje X)</div>
+                  <div id="areaChartsWrap" class="d-grid gap-3"></div>
+                </div>
+
                 <!-- ✅ AQUÍ VA EL NUEVO GRÁFICO DE ÁREAS -->
                 <div class="mt-4 chart-wrap">
                   <canvas id="areaChart"></canvas>
@@ -779,7 +784,7 @@
 
   let chart = null;       // barChart
   let behavChart = null;  // behavChart
-  let areaChart = null;   // ✅ areaChart
+  let areaCharts = [];    // ✅ acumulados por tratamiento
   let lastSummaryRows = null;
 
   function colCount(){
@@ -1080,6 +1085,111 @@
       }
     });
   }
+
+    // =========================
+  // ✅ Áreas acumuladas por tratamiento (serie tiempo -> [feed, excit, immob])
+  // Formato esperado:
+  // const behavSeries = {
+  //   "Tratamiento A": {5:[a,e,i], 10:[a,e,i], ...},
+  //   "Tratamiento B": {5:[a,e,i], 10:[a,e,i], ...}
+  // };
+  // =========================
+  function destroyAreaCharts(){
+    areaCharts.forEach(ch => { try { ch.destroy(); } catch(e){} });
+    areaCharts = [];
+    const wrap = document.getElementById('areaChartsWrap');
+    if (wrap) wrap.innerHTML = '';
+  }
+
+  function drawAreaCumulativeChartsByTreatment(names, behavSeries){
+    const wrap = document.getElementById('areaChartsWrap');
+    if (!wrap) return;
+
+    destroyAreaCharts();
+
+    // Solo grafica los tratamientos que existen en tu tabla (names)
+    const keys = Object.keys(behavSeries || {}).filter(k => names.includes(k));
+    if (!keys.length){
+      wrap.innerHTML = `<div class="small-muted">No hay series temporales para graficar (behavSeries) que coincidan con los tratamientos.</div>`;
+      return;
+    }
+
+    keys.forEach((treatName, idx) => {
+      const seriesObj = behavSeries[treatName] || {};
+      const times = Object.keys(seriesObj).map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
+      if (!times.length) return;
+
+      // Cumulados por estado
+      let cA = 0, cE = 0, cI = 0;
+      const dataA = [], dataE = [], dataI = [];
+      times.forEach(t => {
+        const v = seriesObj[t] || seriesObj[String(t)] || [0,0,0];
+        cA += safeInt(v[0]);
+        cE += safeInt(v[1]);
+        cI += safeInt(v[2]);
+        dataA.push({x: t, y: cA});
+        dataE.push({x: t, y: cE});
+        dataI.push({x: t, y: cI});
+      });
+
+      // Card + canvas
+      const card = document.createElement('div');
+      card.className = 'chart-wrap';
+      card.style.height = '280px';
+      card.innerHTML = `<canvas id="areaChart_${idx}"></canvas>`;
+      wrap.appendChild(card);
+
+      const canvas = document.getElementById(`areaChart_${idx}`);
+      const ch = new Chart(canvas, {
+        type: 'line',
+        data: {
+          datasets: [
+            { label: 'Alimentación (acum)', data: dataA, fill: true, borderWidth: 1, tension: 0.25 },
+            { label: 'Excitación (acum)',   data: dataE, fill: true, borderWidth: 1, tension: 0.25 },
+            { label: 'Inmóvil (acum)',      data: dataI, fill: true, borderWidth: 1, tension: 0.25 },
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          parsing: false, // usamos {x,y}
+          plugins: {
+            title: {
+              display: true,
+              text: `Acumulado por estado — ${treatName}`,
+              color: '#111827',
+              font: { size: 14, weight: 'bold' }
+            },
+            legend: { labels: { color: '#111827' } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw.y}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',            // ✅ respeta tiempo real
+              title: { display: true, text: 'Tiempo', color: '#111827' },
+              ticks: { color: '#111827' },
+              grid: { color: '#e5e7eb' }
+            },
+            y: {
+              stacked: true,             // ✅ área apilada acumulada
+              beginAtZero: true,
+              title: { display: true, text: 'Conteo acumulado', color: '#111827' },
+              ticks: { color: '#111827' },
+              grid: { color: '#e5e7eb' }
+            }
+          },
+          elements: { point: { radius: 2 } }
+        }
+      });
+
+      areaCharts.push(ch);
+    });
+  }
+
 
   // =========================
   // ✅ ÁREAS (stackplot-like) - EJEMPLO
