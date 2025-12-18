@@ -979,16 +979,25 @@
       },
       options: {
         responsive: true,
-        maintainAspectRatio: false,   // <-- CLAVE para que no colapse
+        maintainAspectRatio: false,
+
         plugins: {
-          legend: { display: true },
+          legend: {
+            display: true,
+            labels: {
+              color: '#111827',     // texto oscuro
+              font: { size: 13 }
+            }
+          },
           title: {
             display: true,
             text: [
               'Proporción de Alimentación por Tratamiento',
               fisherLine
             ],
-            color: '#e5e7eb'
+            color: '#111827',       // título oscuro
+            font: { size: 14, weight: 'bold' },
+            padding: { bottom: 10 }
           },
           tooltip: {
             callbacks: {
@@ -996,22 +1005,32 @@
             }
           }
         },
+
         scales: {
           y: {
             beginAtZero: true,
             max: 1,
             ticks: {
               callback: (v) => `${Math.round(v*100)}%`,
-              color: '#cbd5e1'
+              color: '#111827'      // eje Y oscuro
             },
-            grid: { color: '#1f2a3f' }
+            grid: {
+              color: '#d1d5db'      // grilla visible en blanco
+            }
           },
           x: {
-            ticks: { color: '#cbd5e1' },
-            grid: { display: false }
+            ticks: {
+              color: '#111827',     // etiquetas tratamientos
+              maxRotation: 20,
+              minRotation: 20
+            },
+            grid: {
+              display: false
+            }
           }
         }
       }
+
     });
   }
 
