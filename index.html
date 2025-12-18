@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>App 2×K: Alimentación vs No-alimentación</title>
+  <title>App 2×K: Alimentación vs No-alimentación (desde 3 estados)</title>
 
   <!-- Bootstrap (solo UI) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -11,8 +11,11 @@
   <!-- jStat: Normal/Chi-square CDF, inv, etc. -->
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
-  <!-- Chart.js para gráfico -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- SheetJS para leer Excel .xlsx -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
     body { background: #0b1220; }
@@ -55,10 +58,7 @@
     .table thead tr { background: #001A72; }
 
     /* Visualización de líneas verticales */
-    .table {
-      border-collapse: separate;   /* permite ver bien líneas */
-      border-spacing: 0;
-    }
+    .table { border-collapse: separate; border-spacing: 0; }
 
     .table th, .table td{
       border-right: 2px solid #9aa4b2 !important;  /* vertical */
@@ -88,26 +88,24 @@
     .nav-tabs .nav-link { color:#e5e7eb; border:0; border-bottom:2px solid transparent; background: transparent; }
     .nav-tabs .nav-link.active { color:#ffffff; border-bottom:2px solid #3b82f6; background: transparent; }
 
-    /* ===== Chart: evita que se achique a 0 y dale fondo blanco ===== */
+    /* ===== Chart: evita colapso y fondo blanco ===== */
     .chart-wrap{
       position: relative;
       width: 100%;
-      height: 320px;          /* altura fija (ajústala si quieres) */
+      height: 320px;
       min-height: 260px;
-      background: #ffffff;    /* fondo blanco del bloque */
+      background: #ffffff;
       border-radius: 12px;
       padding: 10px;
     }
 
-    #barChart{
+    canvas{
       width: 100% !important;
-      height: 100% !important;  /* IMPORTANTÍSIMO */
+      height: 100% !important;
       display: block;
-      background: #ffffff;      /* fondo blanco del canvas */
+      background: #ffffff;
       border-radius: 10px;
     }
-
-
 
   </style>
 </head>
@@ -121,10 +119,12 @@
       <div class="card p-4">
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
           <div>
-            <h1 class="h4 mb-1">App 2×K: Alimentación vs No-alimentación</h1>
+            <h1 class="h4 mb-1">App 2×K: Alimentación vs No-alimentación (desde 3 estados)</h1>
             <div class="small-muted">
-              Ingresa conteos por tratamiento. Calcula χ², V de Cramér, residuos z, correcciones (Bonferroni/Holm),
-              Fisher–Freeman–Halton (Monte Carlo), comparaciones por pares (Fisher 2×2), matriz p-values y potencia estimada.
+              Ingresa conteos por tratamiento con 3 estados (Alimentación, Excitación, Inmóvil).
+              La app colapsa automáticamente No_alimentación = Excitación + Inmóvil y calcula χ², V de Cramér,
+              residuos z, correcciones (Bonferroni/Holm), Fisher–Freeman–Halton (Monte Carlo),
+              comparaciones por pares (Fisher 2×2), matriz p-values y potencia estimada.
             </div>
           </div>
           <div class="d-flex gap-2">
@@ -166,27 +166,41 @@
             <!-- Entrada -->
             <div class="col-12">
               <div class="card p-4">
-                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
-                  <h2 class="h6 mb-0">1) Tabla observada</h2>
+                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2">
+                  <h2 class="h6 mb-0">1) Tabla observada (3 estados)</h2>
                   <div class="d-flex gap-2">
                     <button class="btn btn-outline-light" id="btnAddCol">+ Tratamiento</button>
                     <button class="btn btn-outline-danger" id="btnRemoveCol">- Último</button>
                   </div>
                 </div>
 
-                <div class="table-responsive">
+                <div class="row g-2 mt-2">
+                  <div class="col-md-6">
+                    <label class="form-label">Subir Excel/CSV (3×K)</label>
+                    <input class="form-control" type="file" id="fileExcel" accept=".xlsx,.xls,.csv" />
+                    <div class="small-muted">
+                      Debe tener columna <b>estado</b> y luego una columna por tratamiento.
+                      Filas: <b>alimentación</b>, <b>excitación</b>, <b>inmovil</b>.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="table-responsive mt-3">
                   <table class="table table-sm align-middle" id="obsTable">
                     <thead>
                       <tr id="headRow">
-                        <th style="min-width:200px">Fila</th>
+                        <th style="min-width:200px">Estado</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr id="rowFeed">
                         <th>Alimentación</th>
                       </tr>
-                      <tr id="rowNoFeed">
-                        <th>No_alimentación</th>
+                      <tr id="rowExcit">
+                        <th>Excitación</th>
+                      </tr>
+                      <tr id="rowImmob">
+                        <th>Inmóvil</th>
                       </tr>
                     </tbody>
                   </table>
@@ -214,7 +228,7 @@
                 </div>
 
                 <div class="small-muted mt-3">
-                  Nota: si hay esperados &lt; 1 o demasiados &lt; 5, interpreta con cautela.
+                  Nota: el análisis global se hace sobre 2×K colapsando <b>No_alimentación = Excitación + Inmóvil</b>.
                 </div>
               </div>
             </div>
@@ -222,7 +236,7 @@
             <!-- Resultados -->
             <div class="col-12 col-lg-6">
               <div class="card p-4 h-100">
-                <h2 class="h6">2) Resultados globales</h2>
+                <h2 class="h6">2) Resultados globales (2×K)</h2>
                 <div id="globalOut" class="mt-2"></div>
                 <hr class="border-secondary" />
                 <h2 class="h6">3) Esperados (E)</h2>
@@ -245,7 +259,7 @@
 
             <div class="col-12">
               <div class="card p-4">
-                <h2 class="h6">5) Residuos z y p-values por celda</h2>
+                <h2 class="h6">5) Residuos z y p-values por celda (2×K)</h2>
                 <div class="table-responsive" id="residWrap"></div>
                 <div class="small-muted mt-2">Regla orientativa: |z| &gt; 1.96 ≈ p &lt; 0.05 (sin corrección).</div>
               </div>
@@ -282,6 +296,25 @@
               </div>
             </div>
 
+            <!-- Gráficos finales ejemplo -->
+            <div class="col-12">
+              <div class="card p-4">
+                <h2 class="h6">9) Distribución por comportamiento (ejemplo, tipo stackplot)</h2>
+                <div class="small-muted mb-2">
+                  Áreas apiladas por minuto (valores de ejemplo). Orden: Inmóvil, Excitación, Alimentación.
+                </div>
+
+                <div class="row g-3" id="behavGrid">
+                  <div class="col-12 col-lg-4"><div class="chart-wrap"><canvas id="behav0"></canvas></div></div>
+                  <div class="col-12 col-lg-4"><div class="chart-wrap"><canvas id="behav1"></canvas></div></div>
+                  <div class="col-12 col-lg-4"><div class="chart-wrap"><canvas id="behav2"></canvas></div></div>
+                  <div class="col-12 col-lg-4"><div class="chart-wrap"><canvas id="behav3"></canvas></div></div>
+                  <div class="col-12 col-lg-4"><div class="chart-wrap"><canvas id="behav4"></canvas></div></div>
+                  <div class="col-12 col-lg-4"><div class="chart-wrap"><canvas id="behav5"></canvas></div></div>
+                </div>
+              </div>
+            </div>
+
           </div><!-- /row g-3 -->
         </div><!-- /pane-analisis -->
 
@@ -292,6 +325,13 @@
           <div class="card p-4 mt-3">
             <h2 class="h6 mb-2">📘 Manual de interpretación</h2>
             <div class="small-muted mb-3">Guía rápida para leer los resultados de la app.</div>
+
+            <h3 class="h6 mt-3">Entrada (3 estados)</h3>
+            <div>
+              Puedes ingresar (o subir Excel/CSV) con 3 filas: <b>Alimentación</b>, <b>Excitación</b>, <b>Inmóvil</b>.
+              Para el análisis estadístico global se colapsa automáticamente:
+              <code>No_alimentación = Excitación + Inmóvil</code>.
+            </div>
 
             <h3 class="h6 mt-3">Chi-cuadrado (χ²)</h3>
             <div>
@@ -555,7 +595,6 @@
     const c1 = a + c, c2 = b + d;
     const n  = r1 + r2;
 
-    // OR con corrección 0.5 (evita división por cero)
     const OR = ((a+0.5)*(d+0.5))/((b+0.5)*(c+0.5));
 
     const amin = Math.max(0, r1 - c2);
@@ -741,10 +780,12 @@
   // =========================
   // UI Dinámica
   // =========================
-  const headRow = document.getElementById('headRow');
-  const rowFeed = document.getElementById('rowFeed');
-  const rowNoFeed = document.getElementById('rowNoFeed');
-  const btnAddCol = document.getElementById('btnAddCol');
+  const headRow  = document.getElementById('headRow');
+  const rowFeed  = document.getElementById('rowFeed');
+  const rowExcit = document.getElementById('rowExcit');
+  const rowImmob = document.getElementById('rowImmob');
+
+  const btnAddCol    = document.getElementById('btnAddCol');
   const btnRemoveCol = document.getElementById('btnRemoveCol');
 
   let chart = null;
@@ -768,13 +809,17 @@
     `;
     headRow.appendChild(th);
 
-    const td1 = document.createElement('td');
-    td1.innerHTML = `<input class="form-control form-control-sm" data-role="feed" type="number" min="0" step="1" value="0" />`;
-    rowFeed.appendChild(td1);
+    const tdFeed = document.createElement('td');
+    tdFeed.innerHTML = `<input class="form-control form-control-sm" data-role="feed" type="number" min="0" step="1" value="0" />`;
+    rowFeed.appendChild(tdFeed);
 
-    const td2 = document.createElement('td');
-    td2.innerHTML = `<input class="form-control form-control-sm" data-role="nofeed" type="number" min="0" step="1" value="0" />`;
-    rowNoFeed.appendChild(td2);
+    const tdExc = document.createElement('td');
+    tdExc.innerHTML = `<input class="form-control form-control-sm" data-role="excit" type="number" min="0" step="1" value="0" />`;
+    rowExcit.appendChild(tdExc);
+
+    const tdImm = document.createElement('td');
+    tdImm.innerHTML = `<input class="form-control form-control-sm" data-role="immob" type="number" min="0" step="1" value="0" />`;
+    rowImmob.appendChild(tdImm);
   }
 
   function removeLastColumn(){
@@ -782,7 +827,8 @@
     if (k <= 2) return;
     headRow.removeChild(headRow.lastElementChild);
     rowFeed.removeChild(rowFeed.lastElementChild);
-    rowNoFeed.removeChild(rowNoFeed.lastElementChild);
+    rowExcit.removeChild(rowExcit.lastElementChild);
+    rowImmob.removeChild(rowImmob.lastElementChild);
   }
 
   function clearAll(){
@@ -790,7 +836,7 @@
     while (colCount() < 4) addColumn('Tratamiento');
 
     [...headRow.querySelectorAll('input[data-role="colname"]')].forEach((el, idx)=> el.value = `Tratamiento ${idx+1}`);
-    [...document.querySelectorAll('input[data-role="feed"], input[data-role="nofeed"]')].forEach(el => el.value = 0);
+    [...document.querySelectorAll('input[data-role="feed"], input[data-role="excit"], input[data-role="immob"]')].forEach(el => el.value = 0);
 
     document.getElementById('globalOut').innerHTML = '';
     document.getElementById('expectedWrap').innerHTML = '';
@@ -814,20 +860,28 @@
       'T2 Katal ES + Premix ajo china 10 kg/tm',
       'T3 Katal ES + 2 Kg/tm Citoprac'
     ];
-    const feed = [14, 13, 35, 5];
-    const nofeed = [66, 67, 45, 75];
+
+    const feed  = [14, 13, 35, 5];
+    const excit = [45, 45, 27, 40];
+    const immob = [21, 22, 18, 35];
 
     [...headRow.querySelectorAll('input[data-role="colname"]')].forEach((el, idx)=> el.value = names[idx] ?? `Tratamiento ${idx+1}`);
     [...rowFeed.querySelectorAll('input[data-role="feed"]')].forEach((el, idx)=> el.value = feed[idx] ?? 0);
-    [...rowNoFeed.querySelectorAll('input[data-role="nofeed"]')].forEach((el, idx)=> el.value = nofeed[idx] ?? 0);
+    [...rowExcit.querySelectorAll('input[data-role="excit"]')].forEach((el, idx)=> el.value = excit[idx] ?? 0);
+    [...rowImmob.querySelectorAll('input[data-role="immob"]')].forEach((el, idx)=> el.value = immob[idx] ?? 0);
   }
 
   function readTable(){
     const names = [...headRow.querySelectorAll('input[data-role="colname"]')].map(x => (x.value || '').trim() || 'Sin nombre');
-    const feed = [...rowFeed.querySelectorAll('input[data-role="feed"]')].map(x => safeInt(x.value));
-    const nofeed = [...rowNoFeed.querySelectorAll('input[data-role="nofeed"]')].map(x => safeInt(x.value));
+
+    const feed  = [...rowFeed.querySelectorAll('input[data-role="feed"]')].map(x => safeInt(x.value));
+    const excit = [...rowExcit.querySelectorAll('input[data-role="excit"]')].map(x => safeInt(x.value));
+    const immob = [...rowImmob.querySelectorAll('input[data-role="immob"]')].map(x => safeInt(x.value));
 
     if (names.length < 2) throw new Error('Necesitas al menos 2 tratamientos.');
+
+    // Colapsa 3->2
+    const nofeed = excit.map((v,i)=> v + immob[i]);
 
     const obs = [feed, nofeed];
     const N = sum(feed) + sum(nofeed);
@@ -837,7 +891,7 @@
     if (colTotals.some(t => t === 0)){
       throw new Error('Hay tratamientos con total 0. Llena al menos una celda por tratamiento.');
     }
-    return {names, obs};
+    return {names, obs, raw3: {feed, excit, immob}};
   }
 
   function renderExpected(names, E){
@@ -980,14 +1034,10 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-
         plugins: {
           legend: {
             display: true,
-            labels: {
-              color: '#111827',     // texto oscuro
-              font: { size: 13 }
-            }
+            labels: { color: '#111827', font: { size: 13 } }
           },
           title: {
             display: true,
@@ -995,42 +1045,27 @@
               'Proporción de Alimentación por Tratamiento',
               fisherLine
             ],
-            color: '#111827',       // título oscuro
+            color: '#111827',
             font: { size: 14, weight: 'bold' },
             padding: { bottom: 10 }
           },
           tooltip: {
-            callbacks: {
-              label: (ctx) => ` ${(ctx.raw*100).toFixed(1)}%`
-            }
+            callbacks: { label: (ctx) => ` ${(ctx.raw*100).toFixed(1)}%` }
           }
         },
-
         scales: {
           y: {
             beginAtZero: true,
             max: 1,
-            ticks: {
-              callback: (v) => `${Math.round(v*100)}%`,
-              color: '#111827'      // eje Y oscuro
-            },
-            grid: {
-              color: '#d1d5db'      // grilla visible en blanco
-            }
+            ticks: { callback: (v) => `${Math.round(v*100)}%`, color: '#111827' },
+            grid: { color: '#d1d5db' }
           },
           x: {
-            ticks: {
-              color: '#111827',     // etiquetas tratamientos
-              maxRotation: 20,
-              minRotation: 20
-            },
-            grid: {
-              display: false
-            }
+            ticks: { color: '#111827', maxRotation: 20, minRotation: 20 },
+            grid: { display: false }
           }
         }
       }
-
     });
   }
 
@@ -1061,15 +1096,94 @@
   }
 
   // =========================
+  // Upload Excel/CSV (3×K)
+  // =========================
+  function setTableFrom3xK(names, feed, excit, immob){
+    while (colCount() > names.length) removeLastColumn();
+    while (colCount() < names.length) addColumn('');
+
+    [...headRow.querySelectorAll('input[data-role="colname"]')]
+      .forEach((el, idx)=> el.value = names[idx] ?? `Tratamiento ${idx+1}`);
+
+    [...rowFeed.querySelectorAll('input[data-role="feed"]')]
+      .forEach((el, idx)=> el.value = feed[idx] ?? 0);
+
+    [...rowExcit.querySelectorAll('input[data-role="excit"]')]
+      .forEach((el, idx)=> el.value = excit[idx] ?? 0);
+
+    [...rowImmob.querySelectorAll('input[data-role="immob"]')]
+      .forEach((el, idx)=> el.value = immob[idx] ?? 0);
+  }
+
+  function normalizeEstado(s){
+    s = String(s || '').toLowerCase().trim();
+    // quita tildes básico
+    s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (s.includes('aliment')) return 'alimentacion';
+    if (s.includes('excit')) return 'excitacion';
+    if (s.includes('inmov')) return 'inmovil';
+    return s;
+  }
+
+  async function loadExcelFile(file){
+    const ext = file.name.toLowerCase().split('.').pop();
+
+    // CSV
+    if (ext === 'csv'){
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
+      const header = lines[0].split(',').map(x=>x.trim());
+      const names = header.slice(1);
+
+      const map = {alimentacion: [], excitacion: [], inmovil: []};
+      for (let i=1;i<lines.length;i++){
+        const parts = lines[i].split(',').map(x=>x.trim());
+        const estado = normalizeEstado(parts[0]);
+        const vals = parts.slice(1).map(v => safeInt(v));
+        if (map[estado]) map[estado] = vals;
+      }
+      if (!map.alimentacion.length || !map.excitacion.length || !map.inmovil.length){
+        throw new Error('El CSV debe tener 3 filas: alimentación, excitación e inmovil.');
+      }
+      setTableFrom3xK(names, map.alimentacion, map.excitacion, map.inmovil);
+      return;
+    }
+
+    // Excel xlsx/xls
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {defval: ''});
+
+    const cols = Object.keys(rows[0] || {});
+    const estadoCol = cols.find(c => String(c).toLowerCase().trim() === 'estado');
+    if (!estadoCol) throw new Error('El Excel debe tener una columna llamada "estado".');
+
+    const names = cols.filter(c => c !== estadoCol);
+
+    const map = {alimentacion: [], excitacion: [], inmovil: []};
+    for (const r of rows){
+      const estado = normalizeEstado(r[estadoCol]);
+      const vals = names.map(n => safeInt(r[n]));
+      if (map[estado]) map[estado] = vals;
+    }
+
+    if (!map.alimentacion.length || !map.excitacion.length || !map.inmovil.length){
+      throw new Error('El Excel debe tener 3 filas: alimentación, excitación e inmovil (en la columna estado).');
+    }
+
+    setTableFrom3xK(names, map.alimentacion, map.excitacion, map.inmovil);
+  }
+
+  // =========================
   // Ejecutar análisis
   // =========================
   async function run(){
     try {
       const {names, obs} = readTable();
-
       const alpha = Math.min(0.50, Math.max(0.001, Number(document.getElementById('alpha').value) || 0.05));
 
-      const {chi2, p, dof, E, N, V} = chiSquare2xK(obs);
+      const {chi2, p, dof, E, V} = chiSquare2xK(obs);
 
       const flatE = [...E[0], ...E[1]];
       const pctBelow5 = flatE.filter(x => x < 5).length / flatE.length * 100;
@@ -1094,7 +1208,6 @@
       document.getElementById('propOut').innerHTML = renderProps(summaryRows);
       drawChart(summaryRows, `Fisher–Freeman–Halton (MC): χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}`);
 
-      // PARES + MATRIZ + POTENCIA
       const pairs = pairwiseComparisons(names, obs, alpha);
       document.getElementById('pairsWrap').innerHTML = renderPairsTable(pairs.rows, alpha);
       document.getElementById('pMatWrap').innerHTML  = renderPMatrix(names, pairs.pMat, alpha);
@@ -1107,21 +1220,114 @@
   }
 
   // =========================
+  // Stackplot-like charts (ejemplo)
+  // =========================
+  let behavCharts = [];
+
+  const behavExample = {
+    "Katal_v8":  {5:[3,6,3], 10:[1,7,4], 15:[1,10,1], 20:[1,9,2], 25:[1,10,1], 30:[1,8,1]},
+    "Katal_v9":  {5:[3,5,4], 10:[3,7,2], 15:[2,9,1], 20:[4,6,2], 25:[1,6,5], 30:[1,6,5]},
+    "Katal_v10": {5:[3,6,3], 10:[2,9,1], 15:[1,9,2], 20:[1,8,3], 25:[2,5,5], 30:[3,6,3]},
+    "Katal_v11": {5:[1,7,4], 10:[2,4,6], 15:[1,7,4], 20:[2,6,4], 25:[1,5,6], 30:[0,5,7]},
+    "AQ_ADV":    {5:[1,8,3], 10:[2,5,5], 15:[3,7,2], 20:[1,7,4], 25:[4,3,5], 30:[2,7,3]},
+    "Lorica":    {5:[3,8,1], 10:[2,8,2], 15:[1,9,2], 20:[5,6,1], 25:[2,7,3], 30:[1,5,4]},
+  };
+
+  function toProps(minMap){
+    const mins = Object.keys(minMap).map(Number).sort((a,b)=>a-b);
+    const alim = [], excit = [], imm = [];
+    for (const m of mins){
+      const [a,e,i] = minMap[m]; // [Alim, Excit, Inmov]
+      const s = a+e+i;
+      alim.push(s ? a/s : 0);
+      excit.push(s ? e/s : 0);
+      imm.push(s ? i/s : 0);
+    }
+    return {mins, alim, excit, imm};
+  }
+
+  function drawBehaviorCharts(){
+    behavCharts.forEach(c => c.destroy());
+    behavCharts = [];
+
+    const keys = Object.keys(behavExample);
+    keys.forEach((k, idx) => {
+      const canvas = document.getElementById(`behav${idx}`);
+      if (!canvas) return;
+
+      const {mins, alim, excit, imm} = toProps(behavExample[k]);
+
+      const ch = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: mins,
+          datasets: [
+            { label:'Inmóvil',       data: imm,   fill: true, tension: 0.25 },
+            { label:'Excitación',    data: excit, fill: true, tension: 0.25 },
+            { label:'Alimentación',  data: alim,  fill: true, tension: 0.25 },
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins:{
+            title:{ display:true, text:k, color:'#111827', font:{size:14, weight:'bold'} },
+            legend:{ labels:{ color:'#111827' } },
+            tooltip:{ callbacks:{ label:(ctx)=>` ${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%` } }
+          },
+          scales:{
+            y:{
+              min:0, max:1, stacked:true,
+              ticks:{ callback:(v)=>`${Math.round(v*100)}%`, color:'#111827' },
+              grid:{ color:'#e5e7eb' }
+            },
+            x:{
+              ticks:{ color:'#111827' },
+              grid:{ display:false },
+              title:{ display:true, text:'Minutos', color:'#111827' }
+            }
+          },
+          elements:{ point:{ radius:0 } }
+        }
+      });
+
+      behavCharts.push(ch);
+    });
+  }
+
+  // =========================
   // Eventos
   // =========================
   btnAddCol.addEventListener('click', () => addColumn('Tratamiento'));
   btnRemoveCol.addEventListener('click', removeLastColumn);
-  document.getElementById('btnClear').addEventListener('click', clearAll);
-  document.getElementById('btnExample').addEventListener('click', loadExample);
+  document.getElementById('btnClear').addEventListener('click', () => { clearAll(); drawBehaviorCharts(); });
+  document.getElementById('btnExample').addEventListener('click', () => { loadExample(); run(); });
+
   document.getElementById('btnRun').addEventListener('click', run);
   document.getElementById('btnDownloadCSV').addEventListener('click', () => {
     if (!lastSummaryRows) return alert('Primero presiona Calcular.');
     downloadCSV(lastSummaryRows);
   });
 
+  document.getElementById('fileExcel').addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try{
+      await loadExcelFile(f);
+      await run();
+    }catch(err){
+      alert(err?.message ?? String(err));
+      console.error(err);
+    }finally{
+      e.target.value = '';
+    }
+  });
+
   // init
   clearAll();
   loadExample();
+  run();
+  drawBehaviorCharts();
 </script>
 
 <!-- Bootstrap JS (necesario para tabs) -->
