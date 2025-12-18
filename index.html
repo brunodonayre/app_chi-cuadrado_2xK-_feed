@@ -847,7 +847,14 @@
     if (chart){ chart.destroy(); chart = null; }
     if (behavChart){ behavChart.destroy(); behavChart = null; }
     if (areaChart){ areaChart.destroy(); areaChart = null; }
+
+    // ✅ borrar gráficos de área acumulados
+    destroyAreaCharts();
   }
+
+  
+
+
 
   function loadExample(){
     while (colCount() > 4) removeLastColumn();
@@ -1407,6 +1414,14 @@
 
       // Gráfico 2: 100% apilado 3 estados
       drawBehaviorChartFrom3K_UI(names, raw3.feed, raw3.excit, raw3.immob);
+
+      // ✅ Gráficos de área acumulados por tratamiento (si existe la serie temporal)
+      if (typeof behavExample !== 'undefined') {
+        drawAreaCumulativeChartsByTreatment(names, behavExample);
+      } else {
+        destroyAreaCharts();
+      }
+
 
       // ✅ Gráfico 3: Áreas apiladas (ejemplo)
       drawAreaChartFromExample(behavExample);
