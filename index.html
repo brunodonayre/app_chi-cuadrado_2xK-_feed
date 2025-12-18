@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>App 2×K: Alimentación vs No-alimentación (desde 3 estados)</title>
+  <title>App 2×K: Alimentación vs No-alimentación (desde 3 estados + temporal)</title>
 
   <!-- Bootstrap (solo UI) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -23,7 +23,7 @@
     .form-control, .form-select { background: #0b1220; color: #e5e7eb; border-color: #243146; }
     .form-control:focus, .form-select:focus { box-shadow: none; border-color: #3b82f6; }
     .btn-primary { border-radius: 12px; }
-    .btn-outline-light, .btn-outline-danger { border-radius: 12px; }
+    .btn-outline-light, .btn-outline-danger, .btn-outline-warning { border-radius: 12px; }
     .small-muted { color: #94a3b8; }
     .pill { display:inline-block; padding:.15rem .5rem; border-radius:999px; font-size:.8rem; }
     .pill-ok { background:#064e3b; color:#a7f3d0; }
@@ -54,29 +54,15 @@
       background: #f6f8fa;
     }
 
-    /* Que el header no se “rompa” con bootstrap */
     .table thead tr { background: #001A72; }
-
-    /* Visualización de líneas verticales */
     .table { border-collapse: separate; border-spacing: 0; }
-
     .table th, .table td{
-      border-right: 2px solid #9aa4b2 !important;  /* vertical */
-      border-bottom: 1px solid #c7ced8 !important; /* horizontal */
+      border-right: 2px solid #9aa4b2 !important;
+      border-bottom: 1px solid #c7ced8 !important;
     }
-
-    .table tr > *:first-child{
-      border-left: 2px solid #9aa4b2 !important;
-    }
-
-    .table thead tr > *{
-      border-top: 2px solid #001A72 !important;
-    }
-
-    .table tbody tr:hover td,
-    .table tbody tr:hover th{
-      background: #eef2ff;
-    }
+    .table tr > *:first-child{ border-left: 2px solid #9aa4b2 !important; }
+    .table thead tr > *{ border-top: 2px solid #001A72 !important; }
+    .table tbody tr:hover td, .table tbody tr:hover th{ background: #eef2ff; }
 
     code { color:#93c5fd; }
 
@@ -85,7 +71,7 @@
     .nav-tabs .nav-link { color:#e5e7eb; border:0; border-bottom:2px solid transparent; background: transparent; }
     .nav-tabs .nav-link.active { color:#ffffff; border-bottom:2px solid #3b82f6; background: transparent; }
 
-    /* ===== Chart: evita colapso y fondo blanco ===== */
+    /* Charts */
     .chart-wrap{
       position: relative;
       width: 100%;
@@ -96,13 +82,24 @@
       padding: 10px;
       overflow: hidden;
     }
-
     canvas{
       width: 100% !important;
       height: 100% !important;
       display: block;
       background: #ffffff;
       border-radius: 10px;
+    }
+
+    .mini-note{
+      font-size: .85rem;
+      color: #cbd5e1;
+    }
+
+    .ghost-card{
+      border: 1px dashed #334155;
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(15,23,42,.5);
     }
   </style>
 </head>
@@ -116,12 +113,10 @@
       <div class="card p-4">
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
           <div>
-            <h1 class="h4 mb-1">App 2×K: Alimentación vs No-alimentación (desde 3 estados)</h1>
+            <h1 class="h4 mb-1">App 2×K: Alimentación vs No-alimentación (desde 3 estados + temporal)</h1>
             <div class="small-muted">
-              Ingresa conteos por tratamiento con 3 estados (Alimentación, Excitación, Inmóvil).
-              La app colapsa automáticamente No_alimentación = Excitación + Inmóvil y calcula χ², V de Cramér,
-              residuos z, correcciones (Bonferroni/Holm), Fisher–Freeman–Halton (Monte Carlo),
-              comparaciones por pares (Fisher 2×2), matriz p-values y potencia estimada.
+              Ahora soporta <b>serie temporal</b> (estado + tratamiento + tiempo). Si cargas/ingresas temporal, la app:
+              <b>recalcula 3×K</b>, colapsa a 2×K y genera gráficos temporales coherentes.
             </div>
           </div>
           <div class="d-flex gap-2">
@@ -163,8 +158,9 @@
             <!-- Entrada -->
             <div class="col-12">
               <div class="card p-4">
+
                 <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2">
-                  <h2 class="h6 mb-0">1) Tabla observada (3 estados)</h2>
+                  <h2 class="h6 mb-0">1A) Tabla observada (3 estados)</h2>
                   <div class="d-flex gap-2">
                     <button class="btn btn-outline-light" id="btnAddCol">+ Tratamiento</button>
                     <button class="btn btn-outline-danger" id="btnRemoveCol">- Último</button>
@@ -178,6 +174,18 @@
                     <div class="small-muted">
                       Debe tener columna <b>estado</b> y luego una columna por tratamiento.
                       Filas: <b>alimentación</b>, <b>excitación</b>, <b>inmovil</b>.
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="ghost-card h-100">
+                      <div class="mini-note">
+                        <b>Regla:</b> si existe data temporal (1B), la app usa esa como fuente única y
+                        <b>reconstruye</b> automáticamente esta tabla 3×K. Si no hay temporal, se usa lo que ingreses aquí.
+                      </div>
+                      <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-outline-warning btn-sm" id="btnSyncTemporalNames">Sincronizar tratamientos (1B) desde 3×K</button>
+                        <button class="btn btn-outline-light btn-sm" id="btnClearTemporal">Limpiar temporal</button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -203,6 +211,52 @@
                   </table>
                 </div>
 
+                <!-- ===== 1B Temporal ===== -->
+                <hr class="border-secondary my-4"/>
+
+                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2">
+                  <h2 class="h6 mb-0">1B) Serie temporal (formato largo)</h2>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-outline-light" id="btnAddTempRow">+ Fila</button>
+                    <button class="btn btn-outline-danger" id="btnRemoveTempRow">- Última</button>
+                  </div>
+                </div>
+
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label">Subir Excel/CSV (temporal)</label>
+                    <input class="form-control" type="file" id="fileTemporal" accept=".xlsx,.xls,.csv" />
+                    <div class="small-muted">
+                      Columnas requeridas: <b>tratamiento</b>, <b>estado</b>, <b>tiempo</b>, <b>valor</b>.
+                      Estado debe ser: alimentación / excitación / inmovil (se normaliza).
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Tip</label>
+                    <div class="ghost-card">
+                      <div class="mini-note">
+                        - Puedes repetir tiempos (0,5,10,15...) por tratamiento y estado.<br>
+                        - Si el mismo (tratamiento, estado, tiempo) aparece más de una vez, se <b>suma</b>.<br>
+                        - Al calcular, se agregan los totales temporales y se reconstruye 3×K.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="table-responsive mt-3">
+                  <table class="table table-sm align-middle" id="tempTable">
+                    <thead>
+                      <tr>
+                        <th style="min-width:260px">Tratamiento</th>
+                        <th style="min-width:180px">Estado</th>
+                        <th style="min-width:120px">Tiempo</th>
+                        <th style="min-width:120px">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tempBody"></tbody>
+                  </table>
+                </div>
+
                 <div class="row g-3 mt-1">
                   <div class="col-md-3">
                     <label class="form-label">Simulaciones Fisher MC</label>
@@ -212,12 +266,10 @@
                   <div class="col-md-3">
                     <label class="form-label">Semilla</label>
                     <input class="form-control" id="seed" type="number" step="1" value="123" />
-                    <div class="small-muted">Cambia la semilla si quieres otra corrida reproducible.</div>
                   </div>
                   <div class="col-md-3">
                     <label class="form-label">Nivel de significancia (α)</label>
                     <input class="form-control" id="alpha" type="number" min="0.001" max="0.50" step="0.01" value="0.05" />
-                    <div class="small-muted">Usual: 0.05 (5%), opcional: 0.10 o 0.15.</div>
                   </div>
                   <div class="col-md-3 d-flex align-items-end">
                     <button class="btn btn-primary w-100" id="btnRun">Calcular</button>
@@ -225,8 +277,10 @@
                 </div>
 
                 <div class="small-muted mt-3">
-                  Nota: el análisis global se hace sobre 2×K colapsando <b>No_alimentación = Excitación + Inmóvil</b>.
+                  Nota: análisis global sobre 2×K colapsando <b>No_alimentación = Excitación + Inmóvil</b>.
+                  Si hay temporal, se usa como fuente única y esta tabla 3×K se recalcula automáticamente.
                 </div>
+
               </div>
             </div>
 
@@ -255,13 +309,8 @@
                 </div>
 
                 <div class="mt-4">
-                  <div class="small-muted mb-2">Áreas acumuladas por tratamiento (tiempo en eje X)</div>
+                  <div class="small-muted mb-2">Áreas acumuladas por tratamiento (tiempo en eje X) — desde temporal</div>
                   <div id="areaChartsWrap" class="d-grid gap-3"></div>
-                </div>
-
-                <!-- ✅ AQUÍ VA EL NUEVO GRÁFICO DE ÁREAS -->
-                <div class="mt-4 chart-wrap">
-                  <canvas id="areaChart"></canvas>
                 </div>
 
                 <div class="d-flex gap-2 mt-3">
@@ -278,7 +327,6 @@
               </div>
             </div>
 
-            <!-- Comparaciones por pares -->
             <div class="col-12">
               <div class="card p-4">
                 <h2 class="h6">6) Comparaciones por pares (Fisher 2×2) + ajuste Holm</h2>
@@ -309,8 +357,8 @@
               </div>
             </div>
 
-          </div><!-- /row g-3 -->
-        </div><!-- /pane-analisis -->
+          </div>
+        </div>
 
         <!-- ===================== -->
         <!-- PANE: MANUAL -->
@@ -320,82 +368,37 @@
             <h2 class="h6 mb-2">📘 Manual de interpretación</h2>
             <div class="small-muted mb-3">Guía rápida para leer los resultados de la app.</div>
 
-            <h3 class="h6 mt-3">Entrada (3 estados)</h3>
+            <h3 class="h6 mt-3">Entrada (3 estados + temporal)</h3>
             <div>
-              Puedes ingresar (o subir Excel/CSV) con 3 filas: <b>Alimentación</b>, <b>Excitación</b>, <b>Inmóvil</b>.
-              Para el análisis estadístico global se colapsa automáticamente:
+              Puedes ingresar 3×K (Alimentación/Excitación/Inmóvil) o ingresar temporal (tratamiento/estado/tiempo/valor).
+              Si hay temporal, se usa como fuente única y se reconstruye 3×K automáticamente.
+              Para el análisis global:
               <code>No_alimentación = Excitación + Inmóvil</code>.
             </div>
 
             <h3 class="h6 mt-3">Chi-cuadrado (χ²)</h3>
             <div>
-              Mide la discrepancia global entre lo observado (O) y lo esperado (E) si “tratamiento” no tuviera efecto.
-              <b>Más grande</b> = diferencias más marcadas (pero siempre interpreta junto con el p-value).
+              Mide discrepancia global entre observado (O) y esperado (E) bajo H0.
             </div>
 
-            <h3 class="h6 mt-3">p-value global (χ²)</h3>
+            <h3 class="h6 mt-3">V de Cramér</h3>
             <div>
-              Es la probabilidad de observar una diferencia igual o mayor por azar bajo H0 (sin diferencias).
-              Si <b>p &lt; α</b> ⇒ diferencia estadísticamente significativa.
+              Magnitud del efecto: ≈0.1 pequeño, ≈0.3 mediano, ≥0.5 grande.
             </div>
 
-            <h3 class="h6 mt-3">V de Cramér (tamaño del efecto)</h3>
+            <h3 class="h6 mt-3">Temporal</h3>
             <div>
-              Cuantifica la magnitud (relevancia) de la diferencia: <b>≈0.1 pequeño</b>, <b>≈0.3 mediano</b>, <b>≥0.5 grande</b>.
-              Puede pasar que p sea pequeño (significativo) pero V sea pequeño (efecto leve).
-            </div>
-
-            <h3 class="h6 mt-3">Esperados (E)</h3>
-            <div>
-              <b>No es redistribución real</b>. Son conteos teóricos que “deberían” salir si NO hubiera efecto del tratamiento:
-              <code>E(i,j) = (TotalFila_i × TotalCol_j) / N</code>.
-            </div>
-
-            <h3 class="h6 mt-3">Residuos z (por celda)</h3>
-            <div>
-              Indican qué celdas empujan la diferencia global:
-              <code>z = (O − E) / √E</code>.
-              Si |z| es grande, esa celda se aleja mucho de lo esperado.
-            </div>
-
-            <h3 class="h6 mt-3">p-values por celda</h3>
-            <div>
-              Se obtienen aproximando con Normal estándar: <code>p = 2·(1 − Φ(|z|))</code>.
-              <b>Bonferroni</b> y <b>Holm</b> ajustan por múltiples celdas (más estrictos).
-            </div>
-
-            <h3 class="h6 mt-3">Comparaciones por pares (Fisher 2×2)</h3>
-            <div>
-              Para cada par de tratamientos A vs B, se arma una tabla 2×2:
-              (Alimentación/No) × (A/B), y se calcula Fisher exacto (dos colas).
-              <b>p_fisher</b> = sin ajustar. <b>p_holm</b> = ajustado por múltiples pares.
-              La decisión final en la tabla usa <b>p_holm &lt; α</b>.
-            </div>
-
-            <h3 class="h6 mt-3">Tendencia</h3>
-            <div>
-              Marca casos “cercanos” (exploratorios) con <b>p_fisher &lt; 0.10</b> (sin ajustar).
-              No reemplaza el criterio principal (p_holm).
-            </div>
-
-            <h3 class="h6 mt-3">Fisher–Freeman–Halton (MC)</h3>
-            <div>
-              Alternativa global “exacta” para 2×K mediante simulación Monte Carlo (condicionada a márgenes).
-              Si también sale significativo, refuerza la conclusión global.
-            </div>
-
-            <h3 class="h6 mt-3">Potencia (aprox.)</h3>
-            <div>
-              Estimación aproximada (normal) de la probabilidad de detectar diferencia si existe, basada en diferencia de proporciones y tamaños muestrales observados.
+              La tabla temporal (formato largo) es la base correcta para que todo “calce”:
+              el 3×K, 2×K y gráficos.
             </div>
           </div>
-        </div><!-- /pane-manual -->
+        </div>
 
-      </div><!-- /tab-content -->
-    </div><!-- /col-12 tab-content wrapper -->
+      </div>
+    </div>
 
-  </div><!-- /row g-3 -->
-</div><!-- /container -->
+  </div>
+</div>
 
 <script>
   // =========================
@@ -417,12 +420,34 @@
     return Math.floor(n);
   }
 
+  function safeNum(v){
+    const n = Number(v);
+    if (!Number.isFinite(n)) return NaN;
+    return n;
+  }
+
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
+  function normalizeEstado(s){
+    s = String(s || '').toLowerCase().trim();
+    s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (s.includes('aliment')) return 'alimentacion';
+    if (s.includes('excit')) return 'excitacion';
+    if (s.includes('inmov')) return 'inmovil';
+    return s;
+  }
+
+  function estadoLabel(norm){
+    if (norm === 'alimentacion') return 'Alimentación';
+    if (norm === 'excitacion') return 'Excitación';
+    if (norm === 'inmovil') return 'Inmóvil';
+    return norm;
+  }
+
   // =========================
-  // RNG + Hypergeom (para Fisher MC)
+  // RNG + Hypergeom (Fisher MC)
   // =========================
   function makeRng(seed){
     let x = (seed >>> 0) || 123456789;
@@ -581,9 +606,7 @@
     return {chiObs, p: countGE / nSim};
   }
 
-  // =========================
-  // Fisher exacto 2×2 dos colas + OR
-  // =========================
+  // Fisher exacto 2×2
   function fisherExactTwoSided(a,b,c,d){
     const r1 = a + b, r2 = c + d;
     const c1 = a + c, c2 = b + d;
@@ -665,7 +688,7 @@
       pMat[j][i] = r.p_fisher;
     });
 
-    // Potencia (aprox normal, bilateral)
+    // Potencia (aprox normal)
     const powerRows = [];
     for (let i=0;i<K;i++){
       for (let j=i+1;j<K;j++){
@@ -772,7 +795,7 @@
   }
 
   // =========================
-  // UI Dinámica (tabla 3×K)
+  // UI 3×K
   // =========================
   const headRow  = document.getElementById('headRow');
   const rowFeed  = document.getElementById('rowFeed');
@@ -783,9 +806,13 @@
   const btnRemoveCol = document.getElementById('btnRemoveCol');
 
   let chart = null;       // barChart
-  let behavChart = null;  // behavChart
-  let areaCharts = [];    // ✅ acumulados por tratamiento
+  let behavChart = null;  // behavChart (100% apilado por tratamiento)
+  let areaCharts = [];    // áreas acumuladas por tratamiento
   let lastSummaryRows = null;
+
+  // ===== Temporal state =====
+  const tempBody = document.getElementById('tempBody');
+  let temporalRows = []; // [{tratamiento, estado(norm), tiempo(num), valor(int)}]
 
   function colCount(){
     return headRow.querySelectorAll('th.colhdr').length;
@@ -827,14 +854,7 @@
     rowImmob.removeChild(rowImmob.lastElementChild);
   }
 
-  function clearAll(){
-    while (colCount() > 4) removeLastColumn();
-    while (colCount() < 4) addColumn('Tratamiento');
-
-    [...headRow.querySelectorAll('input[data-role="colname"]')].forEach((el, idx)=> el.value = `Tratamiento ${idx+1}`);
-    [...document.querySelectorAll('input[data-role="feed"], input[data-role="excit"], input[data-role="immob"]')]
-      .forEach(el => el.value = 0);
-
+  function clearOutputs(){
     document.getElementById('globalOut').innerHTML = '';
     document.getElementById('expectedWrap').innerHTML = '';
     document.getElementById('residWrap').innerHTML = '';
@@ -846,50 +866,130 @@
 
     if (chart){ chart.destroy(); chart = null; }
     if (behavChart){ behavChart.destroy(); behavChart = null; }
-    if (areaChart){ areaChart.destroy(); areaChart = null; }
-
-    // ✅ borrar gráficos de área acumulados
     destroyAreaCharts();
   }
 
-  
-
-
-
-  function loadExample(){
+  function clearAll(){
     while (colCount() > 4) removeLastColumn();
-    while (colCount() < 4) addColumn('');
+    while (colCount() < 4) addColumn('Tratamiento');
 
-    const names = [
-      'Control KAT ES',
-      'T1 Katal ES + premix ajo 10 kg/tm',
-      'T2 Katal ES + Premix ajo china 10 kg/tm',
-      'T3 Katal ES + 2 Kg/tm Citoprac'
-    ];
+    [...headRow.querySelectorAll('input[data-role="colname"]')].forEach((el, idx)=> el.value = `Tratamiento ${idx+1}`);
+    [...document.querySelectorAll('input[data-role="feed"], input[data-role="excit"], input[data-role="immob"]')]
+      .forEach(el => el.value = 0);
 
-    const feed  = [14, 13, 35, 5];
-    const excit = [45, 45, 27, 40];
-    const immob = [21, 22, 18, 35];
+    temporalRows = [];
+    renderTemporalTable();
 
-    [...headRow.querySelectorAll('input[data-role="colname"]')].forEach((el, idx)=> el.value = names[idx] ?? `Tratamiento ${idx+1}`);
-    [...rowFeed.querySelectorAll('input[data-role="feed"]')].forEach((el, idx)=> el.value = feed[idx] ?? 0);
-    [...rowExcit.querySelectorAll('input[data-role="excit"]')].forEach((el, idx)=> el.value = excit[idx] ?? 0);
-    [...rowImmob.querySelectorAll('input[data-role="immob"]')].forEach((el, idx)=> el.value = immob[idx] ?? 0);
+    clearOutputs();
   }
 
-  // Lee TU tabla 3×K y colapsa a 2×K
-  function readTable(){
-    const names = [...headRow.querySelectorAll('input[data-role="colname"]')].map(x => (x.value || '').trim() || 'Sin nombre');
+  // =========================
+  // Temporal UI
+  // =========================
+  function addTemporalRow(obj = null){
+    const baseNames = getTreatmentNamesFrom3xK();
+    const t0 = baseNames[0] ?? "Tratamiento 1";
+    const row = obj ?? { tratamiento: t0, estado: 'alimentacion', tiempo: 0, valor: 0 };
+    temporalRows.push(row);
+    renderTemporalTable();
+  }
 
+  function removeTemporalRow(){
+    if (!temporalRows.length) return;
+    temporalRows.pop();
+    renderTemporalTable();
+  }
+
+  function renderTemporalTable(){
+    tempBody.innerHTML = '';
+    const baseNames = getTreatmentNamesFrom3xK();
+
+    temporalRows.forEach((r, idx) => {
+      const tr = document.createElement('tr');
+
+      const tdT = document.createElement('td');
+      tdT.innerHTML = `
+        <input class="form-control form-control-sm" data-temp="trat" data-idx="${idx}"
+               value="${escapeHtml(r.tratamiento ?? '')}" list="treatList" />
+      `;
+      tr.appendChild(tdT);
+
+      const tdS = document.createElement('td');
+      tdS.innerHTML = `
+        <select class="form-select form-select-sm" data-temp="estado" data-idx="${idx}">
+          <option value="alimentacion">Alimentación</option>
+          <option value="excitacion">Excitación</option>
+          <option value="inmovil">Inmóvil</option>
+        </select>
+      `;
+      tr.appendChild(tdS);
+
+      const tdTime = document.createElement('td');
+      tdTime.innerHTML = `
+        <input class="form-control form-control-sm" data-temp="tiempo" data-idx="${idx}"
+               type="number" step="1" value="${Number.isFinite(r.tiempo) ? r.tiempo : 0}" />
+      `;
+      tr.appendChild(tdTime);
+
+      const tdV = document.createElement('td');
+      tdV.innerHTML = `
+        <input class="form-control form-control-sm" data-temp="valor" data-idx="${idx}"
+               type="number" min="0" step="1" value="${safeInt(r.valor)}" />
+      `;
+      tr.appendChild(tdV);
+
+      tempBody.appendChild(tr);
+
+      // set estado
+      const sel = tr.querySelector('select[data-temp="estado"]');
+      sel.value = r.estado ?? 'alimentacion';
+    });
+
+    // datalist treatments (para autocompletar)
+    let dl = document.getElementById('treatList');
+    if (!dl){
+      dl = document.createElement('datalist');
+      dl.id = 'treatList';
+      document.body.appendChild(dl);
+    }
+    dl.innerHTML = baseNames.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+  }
+
+  // Update temporalRows on input
+  tempBody.addEventListener('input', (e) => {
+    const idx = safeInt(e.target.getAttribute('data-idx'));
+    const field = e.target.getAttribute('data-temp');
+    if (!Number.isFinite(idx) || !field || !temporalRows[idx]) return;
+
+    if (field === 'trat'){
+      temporalRows[idx].tratamiento = String(e.target.value || '').trim();
+    } else if (field === 'estado'){
+      temporalRows[idx].estado = normalizeEstado(e.target.value);
+    } else if (field === 'tiempo'){
+      temporalRows[idx].tiempo = safeNum(e.target.value);
+    } else if (field === 'valor'){
+      temporalRows[idx].valor = safeInt(e.target.value);
+    }
+  });
+
+  // =========================
+  // Helpers: leer 3×K (manual) y temporal
+  // =========================
+  function getTreatmentNamesFrom3xK(){
+    return [...headRow.querySelectorAll('input[data-role="colname"]')]
+      .map(x => (x.value || '').trim())
+      .map(x => x || 'Sin nombre');
+  }
+
+  function read3xKTableManual(){
+    const names = getTreatmentNamesFrom3xK();
     const feed  = [...rowFeed.querySelectorAll('input[data-role="feed"]')].map(x => safeInt(x.value));
     const excit = [...rowExcit.querySelectorAll('input[data-role="excit"]')].map(x => safeInt(x.value));
     const immob = [...rowImmob.querySelectorAll('input[data-role="immob"]')].map(x => safeInt(x.value));
 
     if (names.length < 2) throw new Error('Necesitas al menos 2 tratamientos.');
 
-    // Colapsa 3->2
     const nofeed = excit.map((v,i)=> v + immob[i]);
-
     const obs = [feed, nofeed];
     const N = sum(feed) + sum(nofeed);
     if (N === 0) throw new Error('La tabla está vacía (N=0).');
@@ -898,9 +998,91 @@
     if (colTotals.some(t => t === 0)){
       throw new Error('Hay tratamientos con total 0. Llena al menos una celda por tratamiento.');
     }
-    return {names, obs, raw3: {feed, excit, immob}};
+
+    return { names, obs, raw3: {feed, excit, immob} };
   }
 
+  function hasTemporalData(){
+    return temporalRows.some(r =>
+      String(r.tratamiento || '').trim().length &&
+      ['alimentacion','excitacion','inmovil'].includes(normalizeEstado(r.estado)) &&
+      Number.isFinite(Number(r.tiempo)) &&
+      safeInt(r.valor) > 0
+    );
+  }
+
+  // Agrega (suma) duplicados por (trat, estado, tiempo)
+  function buildTemporalCube(rows){
+    const cube = {}; // cube[trat][time] = [a,e,i]
+    for (const r0 of rows){
+      const trat = String(r0.tratamiento || '').trim();
+      if (!trat) continue;
+
+      const st = normalizeEstado(r0.estado);
+      if (!['alimentacion','excitacion','inmovil'].includes(st)) continue;
+
+      const t = Number(r0.tiempo);
+      if (!Number.isFinite(t)) continue;
+
+      const v = safeInt(r0.valor);
+      if (v <= 0) continue;
+
+      if (!cube[trat]) cube[trat] = {};
+      const key = String(t);
+
+      if (!cube[trat][key]) cube[trat][key] = [0,0,0];
+      const idx = st === 'alimentacion' ? 0 : (st === 'excitacion' ? 1 : 2);
+      cube[trat][key][idx] += v;
+    }
+    return cube;
+  }
+
+  // Deriva 3×K total desde temporal
+  function derive3xKFromTemporal(namesPreferred){
+    const cube = buildTemporalCube(temporalRows);
+    const names = (namesPreferred && namesPreferred.length)
+      ? namesPreferred
+      : Object.keys(cube);
+
+    const feed = [];
+    const excit = [];
+    const immob = [];
+
+    for (const n of names){
+      const byTime = cube[n] || {};
+      let a=0,e=0,i=0;
+      for (const k of Object.keys(byTime)){
+        const v = byTime[k] || [0,0,0];
+        a += safeInt(v[0]); e += safeInt(v[1]); i += safeInt(v[2]);
+      }
+      feed.push(a);
+      excit.push(e);
+      immob.push(i);
+    }
+    return { names, raw3: { feed, excit, immob }, cube };
+  }
+
+  // Aplicar 3×K al UI (cuando temporal manda)
+  function setTableFrom3xK(names, feed, excit, immob){
+    while (colCount() > names.length) removeLastColumn();
+    while (colCount() < names.length) addColumn('');
+
+    [...headRow.querySelectorAll('input[data-role="colname"]')]
+      .forEach((el, idx)=> el.value = names[idx] ?? `Tratamiento ${idx+1}`);
+
+    [...rowFeed.querySelectorAll('input[data-role="feed"]')]
+      .forEach((el, idx)=> el.value = feed[idx] ?? 0);
+
+    [...rowExcit.querySelectorAll('input[data-role="excit"]')]
+      .forEach((el, idx)=> el.value = excit[idx] ?? 0);
+
+    [...rowImmob.querySelectorAll('input[data-role="immob"]')]
+      .forEach((el, idx)=> el.value = immob[idx] ?? 0);
+  }
+
+  // =========================
+  // Render outputs
+  // =========================
   function renderExpected(names, E){
     let html = '<table class="table table-sm align-middle">';
     html += '<thead><tr><th>Fila</th>' + names.map(n=>`<th>${escapeHtml(n)}</th>`).join('') + '</tr></thead>';
@@ -938,9 +1120,10 @@
     return html;
   }
 
-  function renderGlobal({chi2, p, dof, V, pctBelow5, anyBelow1, fisher}){
+  function renderGlobal({chi2, p, dof, V, pctBelow5, anyBelow1, fisher, temporalUsed}){
     const warn1 = anyBelow1 ? pill('Esperado < 1: Sí', 'bad') : pill('Esperado < 1: No', 'ok');
     const warn5 = (pctBelow5 > 20) ? pill(`Esperados < 5: ${pctBelow5.toFixed(1)}%`, 'warn') : pill(`Esperados < 5: ${pctBelow5.toFixed(1)}%`, 'ok');
+    const src = temporalUsed ? pill('Fuente: Temporal (1B)', 'ok') : pill('Fuente: 3×K manual (1A)', 'warn');
 
     const labelP = (pv) => {
       if (!Number.isFinite(pv)) return 'No disponible.';
@@ -964,14 +1147,13 @@
     };
 
     return `
-      <div class="d-flex flex-wrap gap-2 mb-2">${warn1} ${warn5}</div>
+      <div class="d-flex flex-wrap gap-2 mb-2">${src} ${warn1} ${warn5}</div>
       <div class="small-muted mb-3">${labelExpected()}</div>
 
       <div class="row g-2">
         <div class="col-md-6">
           <div class="small-muted">Chi-cuadrado</div>
           <div class="h5 mb-0">χ²(${dof}) = ${fmt(chi2,3)}</div>
-          <div class="small-muted">Más grande = más distinta la alimentación entre tratamientos.</div>
         </div>
 
         <div class="col-md-6">
@@ -989,7 +1171,6 @@
         <div class="col-md-6 mt-2">
           <div class="small-muted">Fisher–Freeman–Halton (MC)</div>
           <div class="h6 mb-0">χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}</div>
-          <div class="small-muted">Confirmación “más estricta”: si también sale significativo, la conclusión es sólida.</div>
         </div>
       </div>
     `;
@@ -1021,7 +1202,7 @@
     return `<div class="small-muted mb-2">Proporción de Alimentación por tratamiento (ordenado desc.)</div>${lines}`;
   }
 
-  function drawChart(rows, fisherLine){
+  function drawBarChart(rows, fisherLine){
     const labels = rows.map(r => r.tratamiento);
     const data = rows.map(r => r.prop_alim);
 
@@ -1053,8 +1234,8 @@
     });
   }
 
-  // ✅ Barras 100% apiladas con los 3 estados (desde TU tabla)
-  function drawBehaviorChartFrom3K_UI(names, feed, excit, immob){
+  // 100% apilado por tratamiento usando 3×K (sea manual o derivado)
+  function drawBehaviorChartFrom3K(names, feed, excit, immob){
     const totals = names.map((_,j)=> safeInt(feed[j]) + safeInt(excit[j]) + safeInt(immob[j]));
     if (totals.some(t => t === 0)) throw new Error('Hay tratamientos con total 0 en 3×K.');
 
@@ -1064,7 +1245,6 @@
 
     const canvas = document.getElementById('behavChart');
     if (!canvas) return;
-
     if (behavChart) behavChart.destroy();
 
     behavChart = new Chart(canvas, {
@@ -1093,13 +1273,9 @@
     });
   }
 
-    // =========================
-  // ✅ Áreas acumuladas por tratamiento (serie tiempo -> [feed, excit, immob])
-  // Formato esperado:
-  // const behavSeries = {
-  //   "Tratamiento A": {5:[a,e,i], 10:[a,e,i], ...},
-  //   "Tratamiento B": {5:[a,e,i], 10:[a,e,i], ...}
-  // };
+  // =========================
+  // Áreas acumuladas por tratamiento (desde temporal cube)
+  // cube[trat][time] = [a,e,i]
   // =========================
   function destroyAreaCharts(){
     areaCharts.forEach(ch => { try { ch.destroy(); } catch(e){} });
@@ -1108,29 +1284,27 @@
     if (wrap) wrap.innerHTML = '';
   }
 
-  function drawAreaCumulativeChartsByTreatment(names, behavSeries){
+  function drawAreaCumulativeChartsByTreatment(names, cube){
     const wrap = document.getElementById('areaChartsWrap');
     if (!wrap) return;
 
     destroyAreaCharts();
 
-    // Solo grafica los tratamientos que existen en tu tabla (names)
-    const keys = Object.keys(behavSeries || {}).filter(k => names.includes(k));
+    const keys = names.filter(k => cube && cube[k] && Object.keys(cube[k]).length);
     if (!keys.length){
-      wrap.innerHTML = `<div class="small-muted">No hay series temporales para graficar (behavSeries) que coincidan con los tratamientos.</div>`;
+      wrap.innerHTML = `<div class="small-muted">No hay serie temporal cargada para graficar áreas acumuladas.</div>`;
       return;
     }
 
     keys.forEach((treatName, idx) => {
-      const seriesObj = behavSeries[treatName] || {};
+      const seriesObj = cube[treatName] || {};
       const times = Object.keys(seriesObj).map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
       if (!times.length) return;
 
-      // Cumulados por estado
       let cA = 0, cE = 0, cI = 0;
       const dataA = [], dataE = [], dataI = [];
       times.forEach(t => {
-        const v = seriesObj[t] || seriesObj[String(t)] || [0,0,0];
+        const v = seriesObj[String(t)] || [0,0,0];
         cA += safeInt(v[0]);
         cE += safeInt(v[1]);
         cI += safeInt(v[2]);
@@ -1139,7 +1313,6 @@
         dataI.push({x: t, y: cI});
       });
 
-      // Card + canvas
       const card = document.createElement('div');
       card.className = 'chart-wrap';
       card.style.height = '280px';
@@ -1159,35 +1332,15 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          parsing: false, // usamos {x,y}
+          parsing: false,
           plugins: {
-            title: {
-              display: true,
-              text: `Acumulado por estado — ${treatName}`,
-              color: '#111827',
-              font: { size: 14, weight: 'bold' }
-            },
+            title: { display: true, text: `Acumulado por estado — ${treatName}`, color: '#111827', font: { size: 14, weight: 'bold' } },
             legend: { labels: { color: '#111827' } },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw.y}`
-              }
-            }
+            tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.raw.y}` } }
           },
           scales: {
-            x: {
-              type: 'linear',            // ✅ respeta tiempo real
-              title: { display: true, text: 'Tiempo', color: '#111827' },
-              ticks: { color: '#111827' },
-              grid: { color: '#e5e7eb' }
-            },
-            y: {
-              stacked: true,             // ✅ área apilada acumulada
-              beginAtZero: true,
-              title: { display: true, text: 'Conteo acumulado', color: '#111827' },
-              ticks: { color: '#111827' },
-              grid: { color: '#e5e7eb' }
-            }
+            x: { type: 'linear', title: { display: true, text: 'Tiempo', color: '#111827' }, ticks: { color: '#111827' }, grid: { color: '#e5e7eb' } },
+            y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Conteo acumulado', color: '#111827' }, ticks: { color: '#111827' }, grid: { color: '#e5e7eb' } }
           },
           elements: { point: { radius: 2 } }
         }
@@ -1197,73 +1350,9 @@
     });
   }
 
-
   // =========================
-  // ✅ ÁREAS (stackplot-like) - EJEMPLO
+  // CSV resumen descarga
   // =========================
-  // Estructura: { Tratamiento: {dia: [alim, excit, immob], ...}, ... }
-  const behavExample = {
-    "Katal_v8":  {5:[3,6,3], 10:[1,7,4], 15:[1,10,1], 20:[1,9,2], 25:[1,10,1], 30:[1,8,1]},
-    "Katal_v9":  {5:[3,5,4], 10:[3,7,2], 15:[2,9,1], 20:[4,6,2], 25:[1,6,5], 30:[1,6,5]},
-    "Katal_v10": {5:[3,6,3], 10:[2,9,1], 15:[1,9,2], 20:[1,8,3], 25:[2,5,5], 30:[2,6,4]},
-  };
-
-  // Render de área APILADA (100%) por día, promediando todos los tratamientos del ejemplo
-  function drawAreaChartFromExample(exampleObj){
-    const canvas = document.getElementById('areaChart');
-    if (!canvas) return;
-
-    // junta todos los días
-    const daySet = new Set();
-    Object.values(exampleObj).forEach(byDay => Object.keys(byDay).forEach(d => daySet.add(Number(d))));
-    const days = Array.from(daySet).sort((a,b)=>a-b);
-
-    // promedio de proporciones por día (para no “reventar” con muchas líneas)
-    const pA = [], pE = [], pI = [];
-    for (const d of days){
-      let sA=0, sE=0, sI=0, n=0;
-      for (const trt of Object.keys(exampleObj)){
-        const v = exampleObj[trt][d];
-        if (!v) continue;
-        const [a,e,i] = v;
-        const tot = a+e+i;
-        if (tot<=0) continue;
-        sA += a/tot; sE += e/tot; sI += i/tot;
-        n++;
-      }
-      pA.push(n? sA/n : 0);
-      pE.push(n? sE/n : 0);
-      pI.push(n? sI/n : 0);
-    }
-
-    if (areaChart) areaChart.destroy();
-
-    areaChart = new Chart(canvas, {
-      type: 'line',
-      data: {
-        labels: days.map(String),
-        datasets: [
-          { label:'Alimentación', data:pA, fill:true, tension:0.25, pointRadius:2, borderWidth:2, stack:'sA' },
-          { label:'Excitación',   data:pE, fill:true, tension:0.25, pointRadius:2, borderWidth:2, stack:'sA' },
-          { label:'Inmóvil',      data:pI, fill:true, tension:0.25, pointRadius:2, borderWidth:2, stack:'sA' },
-        ]
-      },
-      options: {
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          title:{ display:true, text:'Áreas apiladas por día (100%) – ejemplo', color:'#111827', font:{size:14, weight:'bold'} },
-          legend:{ labels:{ color:'#111827' } },
-          tooltip:{ callbacks:{ label:(ctx)=>` ${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%` } }
-        },
-        scales:{
-          x:{ ticks:{ color:'#111827' }, grid:{ display:false } },
-          y:{ stacked:true, min:0, max:1, ticks:{ callback:(v)=>`${Math.round(v*100)}%`, color:'#111827' }, grid:{ color:'#e5e7eb' } }
-        }
-      }
-    });
-  }
-
   function downloadCSV(rows){
     const header = ['tratamiento','prop_alim','z_alim','p_alim','p_holm_alim'];
     const csv = [header.join(',')].concat(
@@ -1291,38 +1380,11 @@
   }
 
   // =========================
-  // Upload Excel/CSV (3×K)
+  // Upload Excel/CSV 3×K
   // =========================
-  function setTableFrom3xK(names, feed, excit, immob){
-    while (colCount() > names.length) removeLastColumn();
-    while (colCount() < names.length) addColumn('');
-
-    [...headRow.querySelectorAll('input[data-role="colname"]')]
-      .forEach((el, idx)=> el.value = names[idx] ?? `Tratamiento ${idx+1}`);
-
-    [...rowFeed.querySelectorAll('input[data-role="feed"]')]
-      .forEach((el, idx)=> el.value = feed[idx] ?? 0);
-
-    [...rowExcit.querySelectorAll('input[data-role="excit"]')]
-      .forEach((el, idx)=> el.value = excit[idx] ?? 0);
-
-    [...rowImmob.querySelectorAll('input[data-role="immob"]')]
-      .forEach((el, idx)=> el.value = immob[idx] ?? 0);
-  }
-
-  function normalizeEstado(s){
-    s = String(s || '').toLowerCase().trim();
-    s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (s.includes('aliment')) return 'alimentacion';
-    if (s.includes('excit')) return 'excitacion';
-    if (s.includes('inmov')) return 'inmovil';
-    return s;
-  }
-
-  async function loadExcelFile(file){
+  async function loadExcel3xK(file){
     const ext = file.name.toLowerCase().split('.').pop();
 
-    // CSV
     if (ext === 'csv'){
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
@@ -1351,7 +1413,6 @@
       return;
     }
 
-    // Excel xlsx/xls
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, {type:'array'});
     const ws = wb.Sheets[wb.SheetNames[0]];
@@ -1359,7 +1420,7 @@
 
     const cols = Object.keys(rows[0] || {});
     const estadoCol = cols.find(c => String(c).toLowerCase().trim() === 'estado');
-    if (!estadoCol) throw new Error('El Excel debe tener una columna llamada "estado".');
+    if (!estadoCol) throw new Error('El Excel 3×K debe tener una columna llamada "estado".');
 
     const names = cols.filter(c => c !== estadoCol);
 
@@ -1371,22 +1432,203 @@
     }
 
     if (!map.alimentacion.length || !map.excitacion.length || !map.inmovil.length){
-      throw new Error('El Excel debe tener 3 filas: alimentación, excitación e inmovil (en la columna estado).');
+      throw new Error('El Excel 3×K debe tener 3 filas: alimentación, excitación e inmovil.');
     }
 
     setTableFrom3xK(names, map.alimentacion, map.excitacion, map.inmovil);
   }
 
   // =========================
-  // Ejecutar análisis (fuente única: tabla 3×K)
+  // Upload Excel/CSV TEMPORAL
+  // Requiere columnas: tratamiento, estado, tiempo, valor
+  // =========================
+  async function loadTemporalFile(file){
+    const ext = file.name.toLowerCase().split('.').pop();
+    let rows = [];
+
+    if (ext === 'csv'){
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
+
+      const commaCount = (lines[0].match(/,/g) || []).length;
+      const semiCount  = (lines[0].match(/;/g) || []).length;
+      const delim = semiCount > commaCount ? ';' : ',';
+
+      const header = lines[0].split(delim).map(x=>x.trim().toLowerCase());
+      const idxT = header.indexOf('tratamiento');
+      const idxE = header.indexOf('estado');
+      const idxTime = header.indexOf('tiempo');
+      const idxV = header.indexOf('valor');
+
+      if (idxT<0 || idxE<0 || idxTime<0 || idxV<0){
+        throw new Error('CSV temporal requiere columnas: tratamiento, estado, tiempo, valor.');
+      }
+
+      for (let i=1;i<lines.length;i++){
+        const parts = lines[i].split(delim).map(x=>x.trim());
+        rows.push({
+          tratamiento: parts[idxT],
+          estado: normalizeEstado(parts[idxE]),
+          tiempo: Number(parts[idxTime]),
+          valor: safeInt(parts[idxV])
+        });
+      }
+    } else {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, {defval: ''});
+
+      const cols = Object.keys(json[0] || {}).map(c => String(c).toLowerCase().trim());
+      const findCol = (name) => Object.keys(json[0] || {}).find(c => String(c).toLowerCase().trim() === name);
+
+      const cT = findCol('tratamiento');
+      const cE = findCol('estado');
+      const cTime = findCol('tiempo');
+      const cV = findCol('valor');
+
+      if (!cT || !cE || !cTime || !cV){
+        throw new Error('Excel temporal requiere columnas: tratamiento, estado, tiempo, valor.');
+      }
+
+      rows = json.map(r => ({
+        tratamiento: String(r[cT] ?? '').trim(),
+        estado: normalizeEstado(r[cE]),
+        tiempo: Number(r[cTime]),
+        valor: safeInt(r[cV])
+      }));
+    }
+
+    // set temporal
+    temporalRows = rows.filter(r => String(r.tratamiento||'').trim().length);
+    if (!temporalRows.length) throw new Error('Archivo temporal vacío o sin tratamientos válidos.');
+
+    renderTemporalTable();
+  }
+
+  // =========================
+  // Ejemplo (carga 3×K + temporal)
+  // =========================
+  function loadExample(){
+    while (colCount() > 4) removeLastColumn();
+    while (colCount() < 4) addColumn('');
+
+    const names = [
+      'Control KAT ES',
+      'T1 Katal ES + premix ajo 10 kg/tm',
+      'T2 Katal ES + Premix ajo china 10 kg/tm',
+      'T3 Katal ES + 2 Kg/tm Citoprac'
+    ];
+
+    // Temporal demo (6 tiempos)
+    const times = [5,10,15,20,25,30];
+
+    // Genero algo coherente: suma temporal = 3×K
+    temporalRows = [];
+    names.forEach((tr, j) => {
+      times.forEach((t, k) => {
+        // patrón simple diferente por tratamiento
+        const a = [2,1,3,0][j] + (k%2);
+        const e = [6,5,4,7][j] + (k%3);
+        const i = [3,4,2,5][j] + ((k+1)%2);
+
+        temporalRows.push({tratamiento: tr, estado:'alimentacion', tiempo:t, valor:a});
+        temporalRows.push({tratamiento: tr, estado:'excitacion',   tiempo:t, valor:e});
+        temporalRows.push({tratamiento: tr, estado:'inmovil',      tiempo:t, valor:i});
+      });
+    });
+
+    renderTemporalTable();
+
+    // Deriva 3×K desde temporal y setea UI
+    const d = derive3xKFromTemporal(names);
+    setTableFrom3xK(d.names, d.raw3.feed, d.raw3.excit, d.raw3.immob);
+  }
+
+  // =========================
+  // Sync tratamientos temporal desde 3×K
+  // (si renombraste arriba, rellena filas vacías o reemplaza nombres idénticos "Tratamiento X")
+  // =========================
+  function syncTemporalNamesFrom3xK(){
+    const names = getTreatmentNamesFrom3xK();
+    if (!temporalRows.length){
+      // crea 1 fila por estado por cada tratamiento en t=0
+      names.forEach(n=>{
+        ['alimentacion','excitacion','inmovil'].forEach(st=>{
+          temporalRows.push({tratamiento:n, estado:st, tiempo:0, valor:0});
+        });
+      });
+      renderTemporalTable();
+      return;
+    }
+
+    // Si un tratamiento temporal no existe en 3×K pero parece placeholder, lo mapeo por orden
+    const uniqTemp = [...new Set(temporalRows.map(r => String(r.tratamiento||'').trim()).filter(Boolean))];
+    const isPlaceholder = (s) => /^tratamiento\s*\d+$/i.test(String(s||'').trim());
+
+    // regla simple: si temporal tiene placeholders, los reasigna por orden
+    let placeholders = uniqTemp.filter(isPlaceholder);
+    if (placeholders.length){
+      const map = new Map();
+      placeholders.forEach((p, idx)=> { map.set(p, names[idx] ?? p); });
+      temporalRows.forEach(r=>{
+        const key = String(r.tratamiento||'').trim();
+        if (map.has(key)) r.tratamiento = map.get(key);
+      });
+    }
+
+    renderTemporalTable();
+  }
+
+  // =========================
+  // RUN (fuente única)
   // =========================
   async function run(){
     try {
-      const {names, obs, raw3} = readTable();
+      clearOutputs();
 
       const alpha = Math.min(0.50, Math.max(0.001, Number(document.getElementById('alpha').value) || 0.05));
-      const {chi2, p, dof, E, V} = chiSquare2xK(obs);
+      const nSim = Math.max(1000, safeInt(document.getElementById('nSim').value));
+      const seed = safeInt(document.getElementById('seed').value);
 
+      let names, raw3, cube;
+      let temporalUsed = false;
+
+      // 1) Si hay temporal => fuente única
+      if (hasTemporalData()){
+        temporalUsed = true;
+
+        const namesPreferred = getTreatmentNamesFrom3xK(); // respeta orden/nombres del header si quieres
+        const d = derive3xKFromTemporal(namesPreferred);
+        names = d.names;
+        raw3 = d.raw3;
+        cube = d.cube;
+
+        // Refresca UI 3×K para que todo coincida visualmente
+        setTableFrom3xK(names, raw3.feed, raw3.excit, raw3.immob);
+      } else {
+        // 2) fallback a 3×K manual
+        const t = read3xKTableManual();
+        names = t.names;
+        raw3 = t.raw3;
+        cube = null;
+      }
+
+      // Construye 2×K
+      const feed = raw3.feed.map(safeInt);
+      const nofeed = raw3.excit.map((v,i)=> safeInt(v) + safeInt(raw3.immob[i]));
+      const obs = [feed, nofeed];
+
+      const N = sum(feed) + sum(nofeed);
+      if (N === 0) throw new Error('No hay datos (N=0).');
+
+      const colTotals = names.map((_,j)=> feed[j] + nofeed[j]);
+      if (colTotals.some(t => t === 0)){
+        throw new Error('Hay tratamientos con total 0. Revisa tus datos.');
+      }
+
+      // Chi2 global
+      const {chi2, p, dof, E, V} = chiSquare2xK(obs);
       const flatE = [...E[0], ...E[1]];
       const pctBelow5 = flatE.filter(x => x < 5).length / flatE.length * 100;
       const anyBelow1 = flatE.some(x => x < 1);
@@ -1396,35 +1638,26 @@
       const Pbonf = bonferroni(P);
       const Pholm = holm(P);
 
-      const nSim = Math.max(1000, safeInt(document.getElementById('nSim').value));
-      const seed = safeInt(document.getElementById('seed').value);
       const fisher = fisherMC2xK(obs, nSim, seed);
 
-      document.getElementById('globalOut').innerHTML = renderGlobal({chi2, p, dof, V, pctBelow5, anyBelow1, fisher});
+      document.getElementById('globalOut').innerHTML = renderGlobal({chi2, p, dof, V, pctBelow5, anyBelow1, fisher, temporalUsed});
       document.getElementById('expectedWrap').innerHTML = renderExpected(names, E);
       document.getElementById('residWrap').innerHTML = renderResiduals(names, Z, P, Pbonf, Pholm);
 
       const summaryRows = buildSummary(names, obs, Z, P, Pholm);
       lastSummaryRows = summaryRows;
-
       document.getElementById('propOut').innerHTML = renderProps(summaryRows);
 
-      // Gráfico 1: proporción alimentación
-      drawChart(summaryRows, `Fisher–Freeman–Halton (MC): χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}`);
+      drawBarChart(summaryRows, `Fisher–Freeman–Halton (MC): χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}`);
+      drawBehaviorChartFrom3K(names, raw3.feed, raw3.excit, raw3.immob);
 
-      // Gráfico 2: 100% apilado 3 estados
-      drawBehaviorChartFrom3K_UI(names, raw3.feed, raw3.excit, raw3.immob);
-
-      // ✅ Gráficos de área acumulados por tratamiento (si existe la serie temporal)
-      if (typeof behavExample !== 'undefined') {
-        drawAreaCumulativeChartsByTreatment(names, behavExample);
+      // Áreas acumuladas (solo si temporal)
+      if (cube){
+        drawAreaCumulativeChartsByTreatment(names, cube);
       } else {
         destroyAreaCharts();
+        document.getElementById('areaChartsWrap').innerHTML = `<div class="small-muted">Carga serie temporal (1B) para ver áreas acumuladas.</div>`;
       }
-
-
-      // ✅ Gráfico 3: Áreas apiladas (ejemplo)
-      drawAreaChartFromExample(behavExample);
 
       // Pares y potencia
       const pairs = pairwiseComparisons(names, obs, alpha);
@@ -1444,7 +1677,7 @@
   btnAddCol.addEventListener('click', () => addColumn('Tratamiento'));
   btnRemoveCol.addEventListener('click', removeLastColumn);
 
-  document.getElementById('btnClear').addEventListener('click', () => { clearAll(); });
+  document.getElementById('btnClear').addEventListener('click', () => clearAll());
 
   document.getElementById('btnExample').addEventListener('click', () => {
     loadExample();
@@ -1462,7 +1695,7 @@
     const f = e.target.files?.[0];
     if (!f) return;
     try{
-      await loadExcelFile(f);
+      await loadExcel3xK(f);
       await run();
     }catch(err){
       alert(err?.message ?? String(err));
@@ -1470,6 +1703,33 @@
     }finally{
       e.target.value = '';
     }
+  });
+
+  document.getElementById('fileTemporal').addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try{
+      await loadTemporalFile(f);
+      await run();
+    }catch(err){
+      alert(err?.message ?? String(err));
+      console.error(err);
+    }finally{
+      e.target.value = '';
+    }
+  });
+
+  document.getElementById('btnAddTempRow').addEventListener('click', () => addTemporalRow());
+  document.getElementById('btnRemoveTempRow').addEventListener('click', () => removeTemporalRow());
+
+  document.getElementById('btnSyncTemporalNames').addEventListener('click', () => {
+    syncTemporalNamesFrom3xK();
+  });
+
+  document.getElementById('btnClearTemporal').addEventListener('click', () => {
+    temporalRows = [];
+    renderTemporalTable();
+    run();
   });
 
   // init
