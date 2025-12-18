@@ -30,66 +30,71 @@
     /* Cards siguen oscuras, tablas en blanco */
     .card { background: #0f172a; color: #e5e7eb; }
     .table { background: #ffffff; color: #000000; }
-    
+
     /* Encabezados tablas */
     .table thead th{
       background: #001A72;
       color: #ffffff;
       border-color: #001A72 !important;
     }
-    
+
     /* Celdas */
     .table tbody td, .table tbody th{
       color: #000000;
       background: #ffffff;
       border-color: #d0d7de;
     }
-    
+
     /* Rayado suave opcional */
     .table tbody tr:nth-child(even) td,
     .table tbody tr:nth-child(even) th{
       background: #f6f8fa;
     }
-    
+
     /* Que el header no se “rompa” con bootstrap */
     .table thead tr { background: #001A72; }
 
-    /*Visualizacion de lineas verticales*/
-    /* Líneas verticales bien visibles */
+    /* Visualización de líneas verticales */
     .table {
       border-collapse: separate;   /* permite ver bien líneas */
       border-spacing: 0;
     }
-    
+
     .table th, .table td{
       border-right: 2px solid #9aa4b2 !important;  /* vertical */
       border-bottom: 1px solid #c7ced8 !important; /* horizontal */
     }
-    
+
     /* Borde izquierdo de la primera columna */
     .table tr > *:first-child{
       border-left: 2px solid #9aa4b2 !important;
     }
-    
+
     /* Borde superior del encabezado */
     .table thead tr > *{
       border-top: 2px solid #001A72 !important;
     }
-    
-    /* Opcional: hover para lectura */
+
+    /* Hover */
     .table tbody tr:hover td,
     .table tbody tr:hover th{
       background: #eef2ff;
     }
 
-   
     code { color:#93c5fd; }
+
+    /* Tabs */
+    .nav-tabs { border-bottom: 0; }
+    .nav-tabs .nav-link { color:#e5e7eb; border:0; border-bottom:2px solid transparent; background: transparent; }
+    .nav-tabs .nav-link.active { color:#ffffff; border-bottom:2px solid #3b82f6; background: transparent; }
   </style>
 </head>
 
 <body>
 <div class="container py-4">
   <div class="row g-3">
+
+    <!-- Header -->
     <div class="col-12">
       <div class="card p-4">
         <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
@@ -108,127 +113,233 @@
       </div>
     </div>
 
-    <!-- Entrada -->
+    <!-- Tabs -->
     <div class="col-12">
-      <div class="card p-4">
-        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
-          <h2 class="h6 mb-0">1) Tabla observada</h2>
-          <div class="d-flex gap-2">
-            <button class="btn btn-outline-light" id="btnAddCol">+ Tratamiento</button>
-            <button class="btn btn-outline-danger" id="btnRemoveCol">- Último</button>
-          </div>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-sm align-middle" id="obsTable">
-            <thead>
-              <tr id="headRow">
-                <th style="min-width:200px">Fila</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr id="rowFeed">
-                <th>Alimentación</th>
-              </tr>
-              <tr id="rowNoFeed">
-                <th>No_alimentación</th>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="row g-3 mt-1">
-          <div class="col-md-3">
-            <label class="form-label">Simulaciones Fisher MC</label>
-            <input class="form-control" id="nSim" type="number" min="1000" step="1000" value="100000" />
-            <div class="small-muted">Más simulaciones = p más estable (pero más lento).</div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Semilla</label>
-            <input class="form-control" id="seed" type="number" step="1" value="123" />
-            <div class="small-muted">Cambia la semilla si quieres otra corrida reproducible.</div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Nivel de significancia (α)</label>
-            <input class="form-control" id="alpha" type="number" min="0.001" max="0.50" step="0.01" value="0.05" />
-            <div class="small-muted">Usual: 0.05 (5%), opcional: 0.10 o 0.15.</div>
-          </div>
-          <div class="col-md-3 d-flex align-items-end">
-            <button class="btn btn-primary w-100" id="btnRun">Calcular</button>
-          </div>
-        </div>
-
-        <div class="small-muted mt-3">
-          Nota: si hay esperados &lt; 1 o demasiados &lt; 5, interpreta con cautela.
-        </div>
-      </div>
+      <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="tab-analisis" data-bs-toggle="tab"
+                  data-bs-target="#pane-analisis" type="button" role="tab" aria-controls="pane-analisis" aria-selected="true">
+            Análisis
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-manual" data-bs-toggle="tab"
+                  data-bs-target="#pane-manual" type="button" role="tab" aria-controls="pane-manual" aria-selected="false">
+            📘 Manual
+          </button>
+        </li>
+      </ul>
     </div>
 
-    <!-- Resultados -->
-    <div class="col-12 col-lg-6">
-      <div class="card p-4 h-100">
-        <h2 class="h6">2) Resultados globales</h2>
-        <div id="globalOut" class="mt-2"></div>
-        <hr class="border-secondary" />
-        <h2 class="h6">3) Esperados (E)</h2>
-        <div class="table-responsive" id="expectedWrap"></div>
-      </div>
-    </div>
-
-    <div class="col-12 col-lg-6">
-      <div class="card p-4 h-100">
-        <h2 class="h6">4) Proporción de Alimentación y gráfico</h2>
-        <div id="propOut" class="mt-2"></div>
-        <div class="mt-3">
-          <canvas id="barChart" height="160"></canvas>
-        </div>
-        <div class="d-flex gap-2 mt-3">
-          <button class="btn btn-outline-light" id="btnDownloadCSV">Descargar resumen CSV</button>
-        </div>
-      </div>
-    </div>
-
+    <!-- Tab content wrapper -->
     <div class="col-12">
-      <div class="card p-4">
-        <h2 class="h6">5) Residuos z y p-values por celda</h2>
-        <div class="table-responsive" id="residWrap"></div>
-        <div class="small-muted mt-2">Regla orientativa: |z| &gt; 1.96 ≈ p &lt; 0.05 (sin corrección).</div>
-      </div>
-    </div>
+      <div class="tab-content" id="mainTabsContent">
 
-    <!-- NUEVO -->
-    <div class="col-12">
-      <div class="card p-4">
-        <h2 class="h6">6) Comparaciones por pares (Fisher 2×2) + ajuste Holm</h2>
-        <div class="small-muted mb-2">
-          Compara cada par de tratamientos A vs B. p_fisher (sin ajustar) y p_holm (ajustado).
-        </div>
-        <div class="table-responsive" id="pairsWrap"></div>
-      </div>
-    </div>
+        <!-- ===================== -->
+        <!-- PANE: ANÁLISIS -->
+        <!-- ===================== -->
+        <div class="tab-pane fade show active" id="pane-analisis" role="tabpanel" aria-labelledby="tab-analisis">
+          <div class="row g-3">
 
-    <div class="col-12">
-      <div class="card p-4">
-        <h2 class="h6">7) Matriz de p-values (Fisher 2×2, sin ajustar)</h2>
-        <div class="small-muted mb-2">
-          * indica p &lt; α (según el α ingresado arriba).
-        </div>
-        <div class="table-responsive" id="pMatWrap"></div>
-      </div>
-    </div>
+            <!-- Entrada -->
+            <div class="col-12">
+              <div class="card p-4">
+                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+                  <h2 class="h6 mb-0">1) Tabla observada</h2>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-outline-light" id="btnAddCol">+ Tratamiento</button>
+                    <button class="btn btn-outline-danger" id="btnRemoveCol">- Último</button>
+                  </div>
+                </div>
 
-    <div class="col-12">
-      <div class="card p-4">
-        <h2 class="h6">8) Potencia estimada por comparación (aprox.)</h2>
-        <div class="small-muted mb-2">
-          Estimación aproximada (normal) usando diferencia de proporciones y n observados.
-        </div>
-        <div class="table-responsive" id="powerWrap"></div>
-      </div>
-    </div>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle" id="obsTable">
+                    <thead>
+                      <tr id="headRow">
+                        <th style="min-width:200px">Fila</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr id="rowFeed">
+                        <th>Alimentación</th>
+                      </tr>
+                      <tr id="rowNoFeed">
+                        <th>No_alimentación</th>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-  </div>
-</div>
+                <div class="row g-3 mt-1">
+                  <div class="col-md-3">
+                    <label class="form-label">Simulaciones Fisher MC</label>
+                    <input class="form-control" id="nSim" type="number" min="1000" step="1000" value="100000" />
+                    <div class="small-muted">Más simulaciones = p más estable (pero más lento).</div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Semilla</label>
+                    <input class="form-control" id="seed" type="number" step="1" value="123" />
+                    <div class="small-muted">Cambia la semilla si quieres otra corrida reproducible.</div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Nivel de significancia (α)</label>
+                    <input class="form-control" id="alpha" type="number" min="0.001" max="0.50" step="0.01" value="0.05" />
+                    <div class="small-muted">Usual: 0.05 (5%), opcional: 0.10 o 0.15.</div>
+                  </div>
+                  <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" id="btnRun">Calcular</button>
+                  </div>
+                </div>
+
+                <div class="small-muted mt-3">
+                  Nota: si hay esperados &lt; 1 o demasiados &lt; 5, interpreta con cautela.
+                </div>
+              </div>
+            </div>
+
+            <!-- Resultados -->
+            <div class="col-12 col-lg-6">
+              <div class="card p-4 h-100">
+                <h2 class="h6">2) Resultados globales</h2>
+                <div id="globalOut" class="mt-2"></div>
+                <hr class="border-secondary" />
+                <h2 class="h6">3) Esperados (E)</h2>
+                <div class="table-responsive" id="expectedWrap"></div>
+              </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <div class="card p-4 h-100">
+                <h2 class="h6">4) Proporción de Alimentación y gráfico</h2>
+                <div id="propOut" class="mt-2"></div>
+                <div class="mt-3">
+                  <canvas id="barChart" height="160"></canvas>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                  <button class="btn btn-outline-light" id="btnDownloadCSV">Descargar resumen CSV</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="card p-4">
+                <h2 class="h6">5) Residuos z y p-values por celda</h2>
+                <div class="table-responsive" id="residWrap"></div>
+                <div class="small-muted mt-2">Regla orientativa: |z| &gt; 1.96 ≈ p &lt; 0.05 (sin corrección).</div>
+              </div>
+            </div>
+
+            <!-- Comparaciones por pares -->
+            <div class="col-12">
+              <div class="card p-4">
+                <h2 class="h6">6) Comparaciones por pares (Fisher 2×2) + ajuste Holm</h2>
+                <div class="small-muted mb-2">
+                  Compara cada par de tratamientos A vs B. p_fisher (sin ajustar) y p_holm (ajustado).
+                </div>
+                <div class="table-responsive" id="pairsWrap"></div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="card p-4">
+                <h2 class="h6">7) Matriz de p-values (Fisher 2×2, sin ajustar)</h2>
+                <div class="small-muted mb-2">
+                  * indica p &lt; α (según el α ingresado arriba).
+                </div>
+                <div class="table-responsive" id="pMatWrap"></div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="card p-4">
+                <h2 class="h6">8) Potencia estimada por comparación (aprox.)</h2>
+                <div class="small-muted mb-2">
+                  Estimación aproximada (normal) usando diferencia de proporciones y n observados.
+                </div>
+                <div class="table-responsive" id="powerWrap"></div>
+              </div>
+            </div>
+
+          </div><!-- /row g-3 -->
+        </div><!-- /pane-analisis -->
+
+        <!-- ===================== -->
+        <!-- PANE: MANUAL -->
+        <!-- ===================== -->
+        <div class="tab-pane fade" id="pane-manual" role="tabpanel" aria-labelledby="tab-manual">
+          <div class="card p-4 mt-3">
+            <h2 class="h6 mb-2">📘 Manual de interpretación</h2>
+            <div class="small-muted mb-3">Guía rápida para leer los resultados de la app.</div>
+
+            <h3 class="h6 mt-3">Chi-cuadrado (χ²)</h3>
+            <div>
+              Mide la discrepancia global entre lo observado (O) y lo esperado (E) si “tratamiento” no tuviera efecto.
+              <b>Más grande</b> = diferencias más marcadas (pero siempre interpreta junto con el p-value).
+            </div>
+
+            <h3 class="h6 mt-3">p-value global (χ²)</h3>
+            <div>
+              Es la probabilidad de observar una diferencia igual o mayor por azar bajo H0 (sin diferencias).
+              Si <b>p &lt; α</b> ⇒ diferencia estadísticamente significativa.
+            </div>
+
+            <h3 class="h6 mt-3">V de Cramér (tamaño del efecto)</h3>
+            <div>
+              Cuantifica la magnitud (relevancia) de la diferencia: <b>≈0.1 pequeño</b>, <b>≈0.3 mediano</b>, <b>≥0.5 grande</b>.
+              Puede pasar que p sea pequeño (significativo) pero V sea pequeño (efecto leve).
+            </div>
+
+            <h3 class="h6 mt-3">Esperados (E)</h3>
+            <div>
+              <b>No es redistribución real</b>. Son conteos teóricos que “deberían” salir si NO hubiera efecto del tratamiento:
+              <code>E(i,j) = (TotalFila_i × TotalCol_j) / N</code>.
+            </div>
+
+            <h3 class="h6 mt-3">Residuos z (por celda)</h3>
+            <div>
+              Indican qué celdas empujan la diferencia global:
+              <code>z = (O − E) / √E</code>.
+              Si |z| es grande, esa celda se aleja mucho de lo esperado.
+            </div>
+
+            <h3 class="h6 mt-3">p-values por celda</h3>
+            <div>
+              Se obtienen aproximando con Normal estándar: <code>p = 2·(1 − Φ(|z|))</code>.
+              <b>Bonferroni</b> y <b>Holm</b> ajustan por múltiples celdas (más estrictos).
+            </div>
+
+            <h3 class="h6 mt-3">Comparaciones por pares (Fisher 2×2)</h3>
+            <div>
+              Para cada par de tratamientos A vs B, se arma una tabla 2×2:
+              (Alimentación/No) × (A/B), y se calcula Fisher exacto (dos colas).
+              <b>p_fisher</b> = sin ajustar. <b>p_holm</b> = ajustado por múltiples pares.
+              La decisión final en la tabla usa <b>p_holm &lt; α</b>.
+            </div>
+
+            <h3 class="h6 mt-3">Tendencia</h3>
+            <div>
+              Marca casos “cercanos” (exploratorios) con <b>p_fisher &lt; 0.10</b> (sin ajustar).
+              No reemplaza el criterio principal (p_holm).
+            </div>
+
+            <h3 class="h6 mt-3">Fisher–Freeman–Halton (MC)</h3>
+            <div>
+              Alternativa global “exacta” para 2×K mediante simulación Monte Carlo (condicionada a márgenes).
+              Si también sale significativo, refuerza la conclusión global.
+            </div>
+
+            <h3 class="h6 mt-3">Potencia (aprox.)</h3>
+            <div>
+              Estimación aproximada (normal) de la probabilidad de detectar diferencia si existe, basada en diferencia de proporciones y tamaños muestrales observados.
+            </div>
+          </div>
+        </div><!-- /pane-manual -->
+
+      </div><!-- /tab-content -->
+    </div><!-- /col-12 tab-content wrapper -->
+
+  </div><!-- /row g-3 -->
+</div><!-- /container -->
 
 <script>
   // =========================
@@ -415,7 +526,7 @@
   }
 
   // =========================
-  // NUEVO: Fisher exacto 2×2 dos colas + OR
+  // Fisher exacto 2×2 dos colas + OR
   // =========================
   function fisherExactTwoSided(a,b,c,d){
     const r1 = a + b, r2 = c + d;
@@ -941,7 +1052,7 @@
       document.getElementById('propOut').innerHTML = renderProps(summaryRows);
       drawChart(summaryRows, `Fisher–Freeman–Halton (MC): χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}`);
 
-      // NUEVO: pares + matriz + potencia
+      // PARES + MATRIZ + POTENCIA
       const pairs = pairwiseComparisons(names, obs, alpha);
       document.getElementById('pairsWrap').innerHTML = renderPairsTable(pairs.rows, alpha);
       document.getElementById('pMatWrap').innerHTML  = renderPMatrix(names, pairs.pMat, alpha);
@@ -970,5 +1081,9 @@
   clearAll();
   loadExample();
 </script>
+
+<!-- Bootstrap JS (necesario para tabs) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>
