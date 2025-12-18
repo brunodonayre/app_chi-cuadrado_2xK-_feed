@@ -251,6 +251,10 @@
                 <div class="mt-3 chart-wrap">
                   <canvas id="barChart"></canvas>
                 </div>
+                <div class="mt-4 chart-wrap">
+                  <canvas id="behavChart"></canvas>
+                </div>
+
                 <div class="d-flex gap-2 mt-3">
                   <button class="btn btn-outline-light" id="btnDownloadCSV">Descargar resumen CSV</button>
                 </div>
@@ -1197,6 +1201,65 @@
   }
 
 
+  // =========================
+  // 🔹 LECTURA TABLA 3×K (ESTADO)
+  // =========================
+  function read3K(){
+    const t3kHead = document.getElementById('t3kHead');
+    const t3kBody = document.getElementById('t3kBody');
+
+    if (!t3kHead || !t3kBody){
+      throw new Error('La tabla 3×K no está inicializada.');
+    }
+
+    const names = [...t3kHead.querySelectorAll('input[data-role="t3k-colname"]')]
+      .map(x => (x.value || '').trim() || 'Sin nombre');
+
+    if (names.length < 2){
+      throw new Error('3×K: necesitas al menos 2 tratamientos.');
+    }
+
+    function getRow(key){
+      const tr = t3kBody.querySelector(`tr[data-row="${key}"]`);
+      if (!tr) throw new Error(`Fila ${key} no encontrada en 3×K.`);
+      return [...tr.querySelectorAll('input[data-role="t3k-val"]')]
+        .map(x => safeInt(x.value));
+    }
+
+    const A = getRow('alimentacion'); // alimentación
+    const E = getRow('excitacion');   // excitación
+    const I = getRow('inmovil');      // inmovil
+
+    if (A.length !== names.length || E.length !== names.length || I.length !== names.length){
+      throw new Error('3×K: dimensiones inconsistentes.');
+    }
+
+    return { names, A, E, I };
+  }
+
+  // 1) Convierte 3×K -> 2×K (No_alimentación = excitación + inmovil)
+  // 1) Convierte 3×K -> 2×K (No_alimentación = excitación + inmovil)
+  function obs2KFrom3K(){
+    const {names, A, E, I} = read3K();
+    const nofeed = names.map((_,j)=> safeInt(E[j]) + safeInt(I[j]));
+    const obs = [A.map(safeInt), nofeed.map(safeInt)];
+    return {names, obs};
+  }
+
+  // 2) Sincroniza la tabla 2×K (solo visual) desde el 3×K
+  function sync2KUIFrom3K(names, obs){
+    while (colCount() > names.length) removeLastColumn();
+    while (colCount() < names.length) addColumn('Tratamiento');
+
+    [...headRow.querySelectorAll('input[data-role="colname"]')]
+      .forEach((el, j)=> el.value = names[j] ?? `Tratamiento ${j+1}`);
+
+    [...rowFeed.querySelectorAll('input[data-role="feed"]')]
+      .forEach((el, j)=> el.value = obs[0][j] ?? 0);
+
+    [...rowNoFeed.querySelectorAll('input[data-role="nofeed"]')]
+      .forEach((el, j)=> el.value = obs[1][j] ?? 0);
+  }
 
 
   // =========================
@@ -1259,78 +1322,53 @@
   // =========================
   // Stackplot-like charts (ejemplo)
   // =========================
-  let behavCharts = [];
+  // =========================
+  // ✅ Gráfico desde la tabla INICIAL (3×K)
+  // Barras apiladas 100% por tratamiento (Alimentación/Excitación/Inmovil)
+  // =========================
+  let behavChart = null;
 
-  const behavExample = {
-    "Katal_v8":  {5:[3,6,3], 10:[1,7,4], 15:[1,10,1], 20:[1,9,2], 25:[1,10,1], 30:[1,8,1]},
-    "Katal_v9":  {5:[3,5,4], 10:[3,7,2], 15:[2,9,1], 20:[4,6,2], 25:[1,6,5], 30:[1,6,5]},
-    "Katal_v10": {5:[3,6,3], 10:[2,9,1], 15:[1,9,2], 20:[1,8,3], 25:[2,5,5], 30:[3,6,3]},
-    "Katal_v11": {5:[1,7,4], 10:[2,4,6], 15:[1,7,4], 20:[2,6,4], 25:[1,5,6], 30:[0,5,7]},
-    "AQ_ADV":    {5:[1,8,3], 10:[2,5,5], 15:[3,7,2], 20:[1,7,4], 25:[4,3,5], 30:[2,7,3]},
-    "Lorica":    {5:[3,8,1], 10:[2,8,2], 15:[1,9,2], 20:[5,6,1], 25:[2,7,3], 30:[1,5,4]},
-  };
+  function drawBehaviorChartFrom3K(){
+    const { names, A, E, I } = read3K();
 
-  function toProps(minMap){
-    const mins = Object.keys(minMap).map(Number).sort((a,b)=>a-b);
-    const alim = [], excit = [], imm = [];
-    for (const m of mins){
-      const [a,e,i] = minMap[m]; // [Alim, Excit, Inmov]
-      const s = a+e+i;
-      alim.push(s ? a/s : 0);
-      excit.push(s ? e/s : 0);
-      imm.push(s ? i/s : 0);
-    }
-    return {mins, alim, excit, imm};
-  }
+    const totals = names.map((_,j)=> safeInt(A[j]) + safeInt(E[j]) + safeInt(I[j]));
+    if (totals.some(t => t === 0)) throw new Error('3×K: hay tratamientos con total 0.');
 
-  function drawBehaviorCharts(){
-    behavCharts.forEach(c => c.destroy());
-    behavCharts = [];
+    const pA = names.map((_,j)=> safeInt(A[j]) / totals[j]);
+    const pE = names.map((_,j)=> safeInt(E[j]) / totals[j]);
+    const pI = names.map((_,j)=> safeInt(I[j]) / totals[j]);
 
-    const keys = Object.keys(behavExample);
-    keys.forEach((k, idx) => {
-      const canvas = document.getElementById(`behav${idx}`);
-      if (!canvas) return;
+    const canvas = document.getElementById('behavChart');
+    if (!canvas) return;
 
-      const {mins, alim, excit, imm} = toProps(behavExample[k]);
+    if (behavChart) behavChart.destroy();
 
-      const ch = new Chart(canvas, {
-        type: 'line',
-        data: {
-          labels: mins,
-          datasets: [
-            { label:'Inmóvil',       data: imm,   fill: true, tension: 0.25 },
-            { label:'Excitación',    data: excit, fill: true, tension: 0.25 },
-            { label:'Alimentación',  data: alim,  fill: true, tension: 0.25 },
-          ]
+    behavChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: names,
+        datasets: [
+          { label:'Alimentación', data: pA, stack:'s1', borderWidth: 1 },
+          { label:'Excitación',   data: pE, stack:'s1', borderWidth: 1 },
+          { label:'Inmovil',      data: pI, stack:'s1', borderWidth: 1 },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins:{
+          title:{ display:true, text:'Distribución de estados por tratamiento (100% apilado)', color:'#111827', font:{size:14, weight:'bold'} },
+          legend:{ labels:{ color:'#111827' } },
+          tooltip:{ callbacks:{ label:(ctx)=>` ${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%` } }
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins:{
-            title:{ display:true, text:k, color:'#111827', font:{size:14, weight:'bold'} },
-            legend:{ labels:{ color:'#111827' } },
-            tooltip:{ callbacks:{ label:(ctx)=>` ${ctx.dataset.label}: ${(ctx.raw*100).toFixed(1)}%` } }
-          },
-          scales:{
-            y:{
-              min:0, max:1, stacked:true,
-              ticks:{ callback:(v)=>`${Math.round(v*100)}%`, color:'#111827' },
-              grid:{ color:'#e5e7eb' }
-            },
-            x:{
-              ticks:{ color:'#111827' },
-              grid:{ display:false },
-              title:{ display:true, text:'Minutos', color:'#111827' }
-            }
-          },
-          elements:{ point:{ radius:0 } }
+        scales:{
+          x:{ stacked:true, ticks:{ color:'#111827', maxRotation:20, minRotation:20 }, grid:{ display:false } },
+          y:{ stacked:true, min:0, max:1, ticks:{ callback:(v)=>`${Math.round(v*100)}%`, color:'#111827' }, grid:{ color:'#e5e7eb' } }
         }
-      });
-
-      behavCharts.push(ch);
+      }
     });
   }
+
 
   // =========================
   // Eventos
