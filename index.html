@@ -172,6 +172,26 @@
                   <div class="col-md-8">
                     <label class="form-label">Subir Excel/CSV</label>
                     <input class="form-control" type="file" id="fileExcel" accept=".xlsx,.xls,.csv" />
+                    <div class="row g-3 mt-3">
+                      <div class="col-md-4">
+                        <label class="form-label">Nombre para guardar en Firebase</label>
+                        <input class="form-control" id="fbFileName" placeholder="Ej: Ensayo Katal ES – Enero 2026">
+                      </div>
+
+                      <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-outline-light w-100" id="btnUploadFirebase">
+                          Guardar Excel en Firebase
+                        </button>
+                      </div>
+
+                      <div class="col-md-5">
+                        <label class="form-label">Excels guardados</label>
+                        <select class="form-select" id="fbFileSelect">
+                          <option value="">(Cargando…)</option>
+                        </select>
+                      </div>
+                    </div>
+
                     <div class="small-muted">
                       Recomendado (formato largo): columnas <b>tratamiento</b>, <b>estado</b>, <b>tiempo</b>, <b>valor</b>.
                       <br/>
@@ -340,6 +360,39 @@
   </div><!-- /row g-3 -->
 </div><!-- /container -->
 
+<!-- Firebase SDK (Firestore only) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+
+  import {
+    getFirestore, collection, addDoc, getDocs, query, orderBy, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+  import {
+    getStorage, ref, uploadBytes, getDownloadURL
+  } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDg9cs_rSBtL6qdqEuF3uWPaTJOx8_nahQ",
+    authDomain: "app-2xk.firebaseapp.com",
+    projectId: "app-2xk",
+    storageBucket: "app-2xk.firebasestorage.app",
+    messagingSenderId: "444247151606",
+    appId: "1:444247151606:web:caf3d9098531760bcb6dd7"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+  // lo exponemos para usarlo desde tu JS actual
+  window._fb = { 
+    db, storage,
+    collection, addDoc, getDocs,query, orderBy, serverTimestamp, 
+    ref, uploadBytes,getDownloadURL
+     };
+</script>
+
+
 <script>
   // =========================
   // Utilidades
@@ -380,6 +433,8 @@
   // Fuente única: serie temporal (temporalData)
   // [{tratamiento, estado, tiempo, valor}, ...]
   // =========================
+  let lastUploadedFile = null;
+
   let temporalData = [];
 
   // =========================
@@ -1437,8 +1492,106 @@
   }
 
   // =========================
+  // Firebase helpers (Excel)
+  // =========================
+  async function uploadExcelToFirebase(file, displayName){
+    const { storage, ref, uploadBytes, db, collection, addDoc, serverTimestamp } = window._fb;
+
+    const id = crypto.randomUUID();
+    const path = `excels/${id}_${file.name}`;
+
+    await uploadBytes(ref(storage, path), file);
+
+    await addDoc(collection(db, "excel_files"), {
+      name: displayName,
+      originalName: file.name,
+      storagePath: path,
+      createdAt: serverTimestamp()
+    });
+  }
+
+  async function loadExcelCatalog(){
+    if (!window._fb) return;
+
+    const { db, collection, getDocs, query, orderBy } = window._fb;
+    const q = query(collection(db, "excel_files"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+
+    const sel = document.getElementById("fbFileSelect");
+    sel.innerHTML = `<option value="">(Selecciona un Excel)</option>`;
+
+    snap.forEach(doc => {
+      const d = doc.data();
+      const opt = document.createElement("option");
+      opt.value = d.storagePath;
+      opt.textContent = d.name || d.originalName;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function loadExcelFromFirebase(storagePath){
+    const { storage, ref, getDownloadURL } = window._fb;
+
+    const url = await getDownloadURL(ref(storage, storagePath));
+    const buf = await (await fetch(url)).arrayBuffer();
+
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+    // reconstruimos como "archivo virtual"
+    const fakeFile = new File(
+      [buf],
+      storagePath.split("/").pop(),
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+    );
+
+    lastUploadedFile = fakeFile;
+    await loadExcelFile(fakeFile);
+    await run();
+  }
+
+
+  
+  // =========================
   // Eventos
   // =========================
+
+    // cuando subes un Excel local
+  document.getElementById('fileExcel').addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try{
+      lastUploadedFile = f;
+      await loadExcelFile(f);
+      await run();
+    }catch(err){
+      alert(err.message);
+    }finally{
+      e.target.value = '';   // 👈 IMPORTANTE
+    }
+  });
+
+  // guardar en Firebase
+  document.getElementById('btnUploadFirebase').addEventListener('click', async () => {
+    if (!lastUploadedFile) return alert("Primero carga un Excel.");
+    const name = document.getElementById("fbFileName").value.trim();
+    if (!name) return alert("Pon un nombre.");
+
+    await uploadExcelToFirebase(lastUploadedFile, name);
+    alert("✅ Excel guardado en Firebase");
+    await loadExcelCatalog();
+  });
+
+  // seleccionar desde Firebase
+  document.getElementById('fbFileSelect').addEventListener('change', async (e) => {
+    if (!e.target.value) return;
+    await loadExcelFromFirebase(e.target.value);
+  });
+
+  // cargar catálogo al iniciar
+  window.addEventListener("load", loadExcelCatalog);
+
   document.getElementById('btnClear').addEventListener('click', () => { clearAll(); });
 
   document.getElementById('btnExample').addEventListener('click', () => {
@@ -1453,24 +1606,11 @@
     downloadCSV(lastSummaryRows);
   });
 
-  document.getElementById('fileExcel').addEventListener('change', async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    try{
-      await loadExcelFile(f);
-      await run();
-    }catch(err){
-      alert(err?.message ?? String(err));
-      console.error(err);
-    }finally{
-      e.target.value = '';
-    }
-  });
 
-  // init
-  loadExample();
-  run();
+
 </script>
+
+
 
 <!-- Bootstrap JS (necesario para tabs) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
