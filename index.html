@@ -128,6 +128,10 @@
           <div class="d-flex gap-2">
             <button class="btn btn-outline-light" id="btnExample">Cargar ejemplo</button>
             <button class="btn btn-outline-light" id="btnClear">Limpiar</button>
+            <button class="btn btn-outline-light" id="btnLogin">Iniciar sesión</button>
+            <button class="btn btn-outline-danger d-none" id="btnLogout">Salir</button>
+            <span class="small-muted" id="authInfo"></span>
+
           </div>
         </div>
       </div>
@@ -371,6 +375,42 @@
   import {
     getStorage, ref, uploadBytes, getDownloadURL
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
+  // ✅ Auth
+  import {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut,
+    onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDg9cs_rSBtL6qdqEuF3uWPaTJOx8_nahQ",
+    authDomain: "app-2xk.firebaseapp.com",
+    projectId: "app-2xk",
+    storageBucket: "app-2xk.firebasestorage.app",
+    messagingSenderId: "444247151606",
+    appId: "1:444247151606:web:caf3d9098531760bcb6dd7"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+
+  // ✅ Auth init
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  // Lo exponemos
+  window._fb = {
+    db, storage,
+    collection, addDoc, getDocs, query, orderBy, serverTimestamp,
+    ref, uploadBytes, getDownloadURL,
+    auth, provider, signInWithPopup, signOut, onAuthStateChanged
+  };
+</script>
+
 
   const firebaseConfig = {
     apiKey: "AIzaSyDg9cs_rSBtL6qdqEuF3uWPaTJOx8_nahQ",
@@ -1495,6 +1535,8 @@
   // Firebase helpers (Excel)
   // =========================
   async function uploadExcelToFirebase(file, displayName){
+    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
+
     const { storage, ref, uploadBytes, db, collection, addDoc, serverTimestamp } = window._fb;
 
     const id = crypto.randomUUID();
@@ -1510,7 +1552,52 @@
     });
   }
 
+  // =========================
+  // Auth gating
+  // =========================
+  let currentUser = null;
+
+  function setUiAuthed(isAuthed){
+    // Botones
+    document.getElementById("btnLogin")?.classList.toggle("d-none", isAuthed);
+    document.getElementById("btnLogout")?.classList.toggle("d-none", !isAuthed);
+
+    // Bloquea acciones si no hay auth
+    document.getElementById("btnUploadFirebase")?.toggleAttribute("disabled", !isAuthed);
+    document.getElementById("fbFileSelect")?.toggleAttribute("disabled", !isAuthed);
+
+    const info = document.getElementById("authInfo");
+    if (info){
+      info.textContent = isAuthed ? `✅ ${currentUser?.email ?? "Usuario"}` : "🔒 Inicia sesión para usar Firebase";
+    }
+
+    // Si no está autenticado, limpia catálogo
+    if (!isAuthed){
+      const sel = document.getElementById("fbFileSelect");
+      if (sel) sel.innerHTML = `<option value="">(Inicia sesión para ver Excels)</option>`;
+    }
+  }
+
+  async function ensureAuthReady(){
+    if (!window._fb?.onAuthStateChanged) return;
+
+    const { auth, onAuthStateChanged } = window._fb;
+
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user || null;
+      setUiAuthed(!!currentUser);
+
+      // ✅ Solo cuando hay user, carga catálogo
+      if (currentUser){
+        await loadExcelCatalog();
+      }
+    });
+  }
+
+
   async function loadExcelCatalog(){
+    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
+
     if (!window._fb) return;
 
     const { db, collection, getDocs, query, orderBy } = window._fb;
@@ -1551,8 +1638,32 @@
     await run();
   }
 
+  //==================
+  // Nueva sección
+  //==================
+    
+  document.getElementById("btnLogin")?.addEventListener("click", async () => {
+    try{
+      const { auth, provider, signInWithPopup } = window._fb;
+      await signInWithPopup(auth, provider);
+    }catch(e){
+      alert(e?.message ?? String(e));
+      console.error(e);
+    }
+  });
 
-  
+  document.getElementById("btnLogout")?.addEventListener("click", async () => {
+    try{
+      const { auth, signOut } = window._fb;
+      await signOut(auth);
+      clearAll();
+    }catch(e){
+      alert(e?.message ?? String(e));
+      console.error(e);
+    }
+  });
+
+
   // =========================
   // Eventos
   // =========================
@@ -1590,7 +1701,8 @@
   });
 
   // cargar catálogo al iniciar
-  window.addEventListener("load", loadExcelCatalog);
+  window.addEventListener("load", ensureAuthReady);
+
 
   document.getElementById('btnClear').addEventListener('click', () => { clearAll(); });
 
