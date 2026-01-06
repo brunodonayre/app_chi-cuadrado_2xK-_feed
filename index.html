@@ -492,6 +492,24 @@
 
   let temporalData = [];
 
+  let isLoadingExcel = false;
+
+  function setLoadingExcel(on){
+    isLoadingExcel = on;
+
+    const btn = document.getElementById("btnRun");
+    const sel = document.getElementById("fbFileSelect");
+    const up  = document.getElementById("btnUploadFirebase");
+
+    if (btn){
+      btn.disabled = on;
+      btn.textContent = on ? "Cargando..." : "Calcular";
+    }
+    if (sel) sel.disabled = on || !currentUser;
+    if (up)  up.disabled  = on || !currentUser;
+  }
+
+
   // =========================
   // RNG + Hypergeom (para Fisher MC)
   // =========================
@@ -1456,6 +1474,8 @@
   // =========================
   async function run(){
     try {
+      if (isLoadingExcel) return alert("Espera: aún estoy cargando el Excel...");
+
       if (!temporalData.length) throw new Error('No hay datos. Carga un Excel/CSV o presiona "Cargar ejemplo".');
 
       console.log("run() temporalData sample:", temporalData.slice(0,5));
@@ -1969,18 +1989,26 @@
 
   // seleccionar desde Firebase
   document.getElementById('fbFileSelect').addEventListener('change', async (e) => {
-    try{
-      const path = e.target.value;
-      if (!path) return;
+    const path = e.target.value;
+    if (!path) return;
 
-      clearAll();                 // ✅ limpia todo antes de cargar
+    try{
+      if (!currentUser) throw new Error("Debes iniciar sesión.");
+
+      setLoadingExcel(true);
+      clearAll();
+      temporalData = [];
+
       await loadExcelFromFirebase(path);
 
     }catch(err){
       alert("Error al cargar Excel desde Firebase: " + (err?.message ?? String(err)));
       console.error(err);
+    }finally{
+      setLoadingExcel(false);
     }
   });
+
 
 
   // cargar catálogo al iniciar
