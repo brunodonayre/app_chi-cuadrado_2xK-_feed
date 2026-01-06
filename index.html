@@ -409,8 +409,9 @@
 
   import {
     getStorage,
-    ref, uploadBytes, getDownloadURL, deleteObject
+    ref, uploadBytes, getDownloadURL, deleteObject, getBytes
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
 
   import {
     getAuth,
@@ -440,7 +441,7 @@
     db, storage,
     collection, addDoc, getDocs, query, orderBy, serverTimestamp,
     doc, deleteDoc, updateDoc,
-    ref, uploadBytes, getDownloadURL, deleteObject,
+    ref, uploadBytes, getDownloadURL, deleteObject, getBytes,
     auth, provider, signInWithPopup, signOut, onAuthStateChanged
   };
 </script>
@@ -1880,30 +1881,14 @@
     if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
     if (!window._fb) throw new Error("Firebase no está listo.");
 
-    const { storage, ref, getDownloadURL } = window._fb;
+    const { storage, ref, getBytes } = window._fb;
 
-    const url = await getDownloadURL(ref(storage, storagePath));
+    // Descarga binaria SIN fetch (evita CORS)
+    const bytes = await getBytes(ref(storage, storagePath));
 
-    let buf;
-    try{
-      const resp = await fetch(url, { cache: "no-store" });
-      if (!resp.ok) throw new Error(`No pude descargar el archivo (${resp.status})`);
-      buf = await resp.arrayBuffer();
-    }catch(err){
-      // Fallback súper útil cuando estás en file:// o el navegador bloquea fetch
-      const msg =
-        "❌ Failed to fetch al descargar desde Firebase.\n\n" +
-        "Causa típica: abriste el HTML con doble click (file://).\n" +
-        "✅ Ábrelo con Live Server (http://...) y vuelve a intentar.\n\n" +
-        "Mientras tanto, puedo abrir el Excel directo en otra pestaña.";
+    // Convierte Uint8Array -> ArrayBuffer exacto
+    const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 
-      // abre el archivo directo para que al menos lo puedas ver/descargar manualmente
-      window.open(url, "_blank", "noopener");
-
-      throw new Error(msg);
-    }
-
-    // archivo virtual para reutilizar loadExcelFile()
     const filename = storagePath.split("/").pop() || "firebase.xlsx";
     const fakeFile = new File([buf], filename, {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -1914,8 +1899,9 @@
     await loadExcelFile(fakeFile); // llena temporalData
     console.log("✅ temporalData rows:", temporalData.length);
 
-    await run(); // ✅ calcula automáticamente
+    await run(); // calcula automáticamente
   }
+
 
   //==================
   // Nueva sección
