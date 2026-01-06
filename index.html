@@ -412,25 +412,6 @@
 </script>
 
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDg9cs_rSBtL6qdqEuF3uWPaTJOx8_nahQ",
-    authDomain: "app-2xk.firebaseapp.com",
-    projectId: "app-2xk",
-    storageBucket: "app-2xk.firebasestorage.app",
-    messagingSenderId: "444247151606",
-    appId: "1:444247151606:web:caf3d9098531760bcb6dd7"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const storage = getStorage(app);
-  // lo exponemos para usarlo desde tu JS actual
-  window._fb = { 
-    db, storage,
-    collection, addDoc, getDocs,query, orderBy, serverTimestamp, 
-    ref, uploadBytes,getDownloadURL
-     };
-</script>
 
 
 <script>
@@ -1563,8 +1544,11 @@
     document.getElementById("btnLogout")?.classList.toggle("d-none", !isAuthed);
 
     // Bloquea acciones si no hay auth
-    document.getElementById("btnUploadFirebase")?.toggleAttribute("disabled", !isAuthed);
-    document.getElementById("fbFileSelect")?.toggleAttribute("disabled", !isAuthed);
+    const up = document.getElementById("btnUploadFirebase");
+    const sel = document.getElementById("fbFileSelect");
+    if (up) up.disabled = !isAuthed;
+    if (sel) sel.disabled = !isAuthed;
+
 
     const info = document.getElementById("authInfo");
     if (info){
@@ -1701,7 +1685,15 @@
   });
 
   // cargar catálogo al iniciar
-  window.addEventListener("load", ensureAuthReady);
+  window.addEventListener("load", async () => {
+    // Espera a que el módulo Firebase termine y exponga window._fb
+    for (let i = 0; i < 100; i++) {
+      if (window._fb?.auth) break;
+      await new Promise(r => setTimeout(r, 30));
+    }
+    await ensureAuthReady();
+  });
+
 
 
   document.getElementById('btnClear').addEventListener('click', () => { clearAll(); });
