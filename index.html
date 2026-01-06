@@ -1665,9 +1665,9 @@
         <td class="small-muted">${escapeHtml(d.storagePath || '')}</td>
         <td class="small-muted">${escapeHtml(fmtDate(d.createdAt))}</td>
         <td class="text-nowrap">
-          <button class="btn btn-sm btn-outline-light me-1" data-act="preview" data-id="${d.id}">Ver</button>
-          <button class="btn btn-sm btn-outline-light me-1" data-act="rename" data-id="${d.id}">Renombrar</button>
-          <button class="btn btn-sm btn-outline-light me-1" data-act="replace" data-id="${d.id}">Reemplazar</button>
+          <button class="btn btn-sm btn-view me-1" data-act="preview" data-id="${d.id}">Ver</button>
+          <button class="btn btn-sm btn-rename me-1" data-act="rename" data-id="${d.id}">Renombrar</button>
+          <button class="btn btn-sm btn-replace me-1" data-act="replace" data-id="${d.id}">Reemplazar</button>
           <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${d.id}">Eliminar</button>
         </td>
       </tr>
@@ -1863,10 +1863,25 @@
     const { storage, ref, getDownloadURL } = window._fb;
 
     const url = await getDownloadURL(ref(storage, storagePath));
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`No pude descargar el archivo (${resp.status})`);
 
-    const buf = await resp.arrayBuffer();
+    let buf;
+    try{
+      const resp = await fetch(url, { cache: "no-store" });
+      if (!resp.ok) throw new Error(`No pude descargar el archivo (${resp.status})`);
+      buf = await resp.arrayBuffer();
+    }catch(err){
+      // Fallback súper útil cuando estás en file:// o el navegador bloquea fetch
+      const msg =
+        "❌ Failed to fetch al descargar desde Firebase.\n\n" +
+        "Causa típica: abriste el HTML con doble click (file://).\n" +
+        "✅ Ábrelo con Live Server (http://...) y vuelve a intentar.\n\n" +
+        "Mientras tanto, puedo abrir el Excel directo en otra pestaña.";
+
+      // abre el archivo directo para que al menos lo puedas ver/descargar manualmente
+      window.open(url, "_blank", "noopener");
+
+      throw new Error(msg);
+    }
 
     // archivo virtual para reutilizar loadExcelFile()
     const filename = storagePath.split("/").pop() || "firebase.xlsx";
@@ -1876,14 +1891,11 @@
 
     lastUploadedFile = fakeFile;
 
-    await loadExcelFile(fakeFile);
-
-    // DEBUG rápido: si esto sale 0, el Excel no coincide con formato esperado
+    await loadExcelFile(fakeFile); // llena temporalData
     console.log("✅ temporalData rows:", temporalData.length);
 
-    await run();
+    await run(); // ✅ calcula automáticamente
   }
-
 
   //==================
   // Nueva sección
