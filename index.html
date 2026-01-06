@@ -1883,21 +1883,17 @@
     if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
     if (!window._fb) throw new Error("Firebase no está listo.");
 
-    const { storage, ref, getBytes } = window._fb;
+    const { storage, ref, getDownloadURL } = window._fb;
 
-    const u8 = await getBytes(ref(storage, storagePath));
+    // 1) URL firmada
+    const url = await getDownloadURL(ref(storage, storagePath));
 
-    // 🔎 Debug útil
-    console.log("getBytes result:", u8, "type:", Object.prototype.toString.call(u8));
+    // 2) Descargar bytes como ArrayBuffer (estable)
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`No pude descargar (${resp.status})`);
+    const buf = await resp.arrayBuffer();
 
-    if (!u8) throw new Error("getBytes devolvió vacío (undefined/null). Revisa permisos/rules.");
-    if (!(u8 instanceof Uint8Array)) {
-      throw new Error("getBytes no devolvió Uint8Array. Resultado inesperado.");
-    }
-
-    // ✅ ArrayBuffer seguro
-    const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
-
+    // 3) Reconstruir File
     const filename = storagePath.split("/").pop() || "firebase_file";
     const ext = (filename.split(".").pop() || "").toLowerCase();
 
