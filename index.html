@@ -1476,7 +1476,7 @@
   async function run(){
     try {
       if (!Array.isArray(temporalData)) temporalData = [];  
-      if (isLoadingExcel) return alert("Espera: aún estoy cargando el Excel...");
+      if (isLoadingExcel) return alert("Excel cargado! ya puedes calcular");
 
       if (!temporalData.length) throw new Error('No hay datos. Carga un Excel/CSV o presiona "Cargar ejemplo".');
 
