@@ -152,6 +152,14 @@
             📘 Manual
           </button>
         </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-archivos" data-bs-toggle="tab"
+                  data-bs-target="#pane-archivos" type="button" role="tab"
+                  aria-controls="pane-archivos" aria-selected="false">
+            📂 Archivos
+          </button>
+        </li>
+
       </ul>
     </div>
 
@@ -358,6 +366,32 @@
           </div>
         </div><!-- /pane-manual -->
 
+        <div class="tab-pane fade" id="pane-archivos" role="tabpanel" aria-labelledby="tab-archivos">
+          <div class="card p-4 mt-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <div>
+                <h2 class="h6 mb-1">📂 Gestión de archivos en Firebase</h2>
+                <div class="small-muted">Previsualiza, renombra, elimina o reemplaza Excels guardados.</div>
+              </div>
+              <button class="btn btn-outline-light" id="btnRefreshCatalog">🔄 Actualizar lista</button>
+            </div>
+
+            <hr class="border-secondary"/>
+
+            <div id="filesOut" class="table-responsive"></div>
+
+            <div class="mt-4">
+              <h3 class="h6 mb-2">👀 Previsualización</h3>
+              <div class="small-muted mb-2">Muestra las primeras filas del Excel seleccionado (hoja 1).</div>
+              <div class="table-responsive" id="previewOut"></div>
+            </div>
+
+            <!-- input oculto para reemplazar -->
+            <input class="d-none" type="file" id="replaceFileInput" accept=".xlsx,.xls,.csv" />
+          </div>
+        </div>
+
+
       </div><!-- /tab-content -->
     </div><!-- /col-12 tab-content wrapper -->
 
@@ -366,6 +400,7 @@
 
 <!-- Firebase SDK (Firestore only) -->
 <script type="module">
+
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 
   import {
@@ -406,9 +441,11 @@
   window._fb = {
     db, storage,
     collection, addDoc, getDocs, query, orderBy, serverTimestamp,
-    ref, uploadBytes, getDownloadURL,
+    doc, deleteDoc, updateDoc,
+    ref, uploadBytes, getDownloadURL, deleteObject,
     auth, provider, signInWithPopup, signOut, onAuthStateChanged
   };
+
 </script>
 
 
@@ -1424,6 +1461,8 @@
     try {
       if (!temporalData.length) throw new Error('No hay datos. Carga un Excel/CSV o presiona "Cargar ejemplo".');
 
+      console.log("run() temporalData sample:", temporalData.slice(0,5));
+
       const alpha = Math.min(0.50, Math.max(0.001, Number(document.getElementById('alpha').value) || 0.05));
 
       // 1) 3×K derivado
@@ -1600,27 +1639,254 @@
     });
   }
 
-  async function loadExcelFromFirebase(storagePath){
+  // =========================
+  // Catálogo avanzado (con acciones)
+  // =========================
+  let cachedCatalog = [];           // [{id,name,originalName,storagePath,createdAt}]
+  let pendingReplaceDoc = null;     // doc seleccionado para reemplazo
+
+  function fmtDate(ts){
+    try{
+      // Firestore Timestamp -> Date
+      const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+      if (!d || isNaN(d.getTime())) return '';
+      return d.toLocaleString();
+    }catch(e){ return ''; }
+  }
+
+  function renderFilesTable(items){
+    if (!items.length){
+      return `<div class="small-muted">No hay archivos guardados.</div>`;
+    }
+
+    const rows = items.map((d) => `
+      <tr>
+        <td>
+          <div><b>${escapeHtml(d.name || d.originalName || '(sin nombre)')}</b></div>
+          <div class="small-muted">${escapeHtml(d.originalName || '')}</div>
+        </td>
+        <td class="small-muted">${escapeHtml(d.storagePath || '')}</td>
+        <td class="small-muted">${escapeHtml(fmtDate(d.createdAt))}</td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-outline-light me-1" data-act="preview" data-id="${d.id}">Ver</button>
+          <button class="btn btn-sm btn-outline-light me-1" data-act="rename" data-id="${d.id}">Renombrar</button>
+          <button class="btn btn-sm btn-outline-light me-1" data-act="replace" data-id="${d.id}">Reemplazar</button>
+          <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${d.id}">Eliminar</button>
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Storage path</th>
+            <th>Creado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  async function fetchCatalog(){
+    if (!currentUser) throw new Error("Debes iniciar sesión para ver el catálogo.");
+
+    const { db, collection, getDocs, query, orderBy } = window._fb;
+    const q = query(collection(db, "excel_files"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+
+    const items = [];
+    snap.forEach(docSnap => {
+      const d = docSnap.data();
+      items.push({
+        id: docSnap.id,
+        name: d.name || "",
+        originalName: d.originalName || "",
+        storagePath: d.storagePath || "",
+        createdAt: d.createdAt || null
+      });
+    });
+
+    return items;
+  }
+
+  async function refreshFilesTab(){
+    const out = document.getElementById("filesOut");
+    const prev = document.getElementById("previewOut");
+    if (prev) prev.innerHTML = "";
+
+    if (!out) return;
+    if (!currentUser){
+      out.innerHTML = `<div class="small-muted">🔒 Inicia sesión para ver archivos.</div>`;
+      return;
+    }
+
+    out.innerHTML = `<div class="small-muted">Cargando…</div>`;
+    cachedCatalog = await fetchCatalog();
+    out.innerHTML = renderFilesTable(cachedCatalog);
+
+    // enganchar acciones
+    out.querySelectorAll("button[data-act]").forEach(btn=>{
+      btn.addEventListener("click", async () => {
+        const act = btn.dataset.act;
+        const id  = btn.dataset.id;
+        const item = cachedCatalog.find(x => x.id === id);
+        if (!item) return;
+
+        try{
+          if (act === "preview") await previewExcel(item);
+          if (act === "rename")  await renameExcel(item);
+          if (act === "delete")  await deleteExcel(item);
+          if (act === "replace") await startReplaceExcel(item);
+        }catch(e){
+          alert(e?.message ?? String(e));
+          console.error(e);
+        }
+      });
+    });
+  }
+
+  async function previewExcel(item){
+    const prev = document.getElementById("previewOut");
+    if (!prev) return;
+    prev.innerHTML = `<div class="small-muted">Descargando y leyendo…</div>`;
+
     const { storage, ref, getDownloadURL } = window._fb;
+    const url = await getDownloadURL(ref(storage, item.storagePath));
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`No pude descargar (${resp.status})`);
+    const buf = await resp.arrayBuffer();
 
-    const url = await getDownloadURL(ref(storage, storagePath));
-    const buf = await (await fetch(url)).arrayBuffer();
-
+    // Leer XLSX
     const wb = XLSX.read(buf, { type: "array" });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
-    // reconstruimos como "archivo virtual"
-    const fakeFile = new File(
-      [buf],
-      storagePath.split("/").pop(),
-      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
-    );
+    if (!rows.length){
+      prev.innerHTML = `<div class="small-muted">Archivo vacío o sin datos en hoja 1.</div>`;
+      return;
+    }
+
+    // Render: primeras 50 filas
+    const maxRows = 50;
+    const show = rows.slice(0, maxRows);
+    const cols = Object.keys(show[0] || {});
+
+    let html = `<div class="small-muted mb-2"><b>${escapeHtml(item.name || item.originalName)}</b> — mostrando ${show.length} de ${rows.length} filas</div>`;
+    html += `<table class="table table-sm align-middle"><thead><tr>${cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>`;
+
+    for (const r of show){
+      html += `<tr>${cols.map(c=>`<td>${escapeHtml(r[c])}</td>`).join('')}</tr>`;
+    }
+    html += `</tbody></table>`;
+
+    prev.innerHTML = html;
+  }
+
+  async function renameExcel(item){
+    const newName = prompt("Nuevo nombre para mostrar:", item.name || item.originalName || "");
+    if (!newName) return;
+
+    const { db, doc, updateDoc, serverTimestamp } = window._fb;
+    await updateDoc(doc(db, "excel_files", item.id), {
+      name: newName,
+      updatedAt: serverTimestamp()
+    });
+
+    alert("✅ Renombrado");
+    await refreshFilesTab();
+    await loadExcelCatalog(); // mantiene tu select también
+  }
+
+  async function deleteExcel(item){
+    const ok = confirm(`¿Seguro que deseas ELIMINAR?\n\n${item.name || item.originalName}\n\nEsto borra Storage + Firestore.`);
+    if (!ok) return;
+
+    const { storage, ref, deleteObject, db, doc, deleteDoc } = window._fb;
+
+    // 1) borrar archivo en storage
+    await deleteObject(ref(storage, item.storagePath));
+
+    // 2) borrar registro en firestore
+    await deleteDoc(doc(db, "excel_files", item.id));
+
+    alert("🗑️ Eliminado");
+    await refreshFilesTab();
+    await loadExcelCatalog();
+  }
+
+  async function startReplaceExcel(item){
+    pendingReplaceDoc = item;
+    const inp = document.getElementById("replaceFileInput");
+    if (!inp) throw new Error("No encuentro replaceFileInput.");
+    inp.value = "";
+    inp.click();
+  }
+
+  // Reemplazo: cuando eliges el archivo nuevo
+  document.getElementById("replaceFileInput")?.addEventListener("change", async (e) => {
+    const f = e.target.files?.[0];
+    if (!f || !pendingReplaceDoc) return;
+
+    try{
+      const ok = confirm(`Vas a reemplazar el contenido del archivo:\n\n${pendingReplaceDoc.name || pendingReplaceDoc.originalName}\n\n¿Continuar?`);
+      if (!ok) return;
+
+      const { storage, ref, uploadBytes, db, doc, updateDoc, serverTimestamp } = window._fb;
+
+      // sube al MISMO storagePath (reemplaza el contenido)
+      await uploadBytes(ref(storage, pendingReplaceDoc.storagePath), f);
+
+      // opcional: actualiza metadata
+      await updateDoc(doc(db, "excel_files", pendingReplaceDoc.id), {
+        originalName: f.name,
+        updatedAt: serverTimestamp()
+      });
+
+      alert("✅ Reemplazado");
+      pendingReplaceDoc = null;
+      await refreshFilesTab();
+      await loadExcelCatalog();
+    }catch(err){
+      alert(err?.message ?? String(err));
+      console.error(err);
+    }finally{
+      e.target.value = "";
+    }
+  });
+
+
+  async function loadExcelFromFirebase(storagePath){
+    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
+    if (!window._fb) throw new Error("Firebase no está listo.");
+
+    const { storage, ref, getDownloadURL } = window._fb;
+
+    const url = await getDownloadURL(ref(storage, storagePath));
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`No pude descargar el archivo (${resp.status})`);
+
+    const buf = await resp.arrayBuffer();
+
+    // archivo virtual para reutilizar loadExcelFile()
+    const filename = storagePath.split("/").pop() || "firebase.xlsx";
+    const fakeFile = new File([buf], filename, {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
 
     lastUploadedFile = fakeFile;
+
     await loadExcelFile(fakeFile);
+
+    // DEBUG rápido: si esto sale 0, el Excel no coincide con formato esperado
+    console.log("✅ temporalData rows:", temporalData.length);
+
     await run();
   }
+
 
   //==================
   // Nueva sección
@@ -1652,6 +1918,20 @@
   // Eventos
   // =========================
 
+  // Botón "Actualizar lista" en pestaña Archivos
+  document.getElementById("btnRefreshCatalog")?.addEventListener("click", async () => {
+    try { await refreshFilesTab(); }
+    catch(e){ alert(e?.message ?? String(e)); console.error(e); }
+  });
+
+  // Cuando el usuario abre la pestaña "Archivos", refresca
+  document.getElementById("tab-archivos")?.addEventListener("shown.bs.tab", async () => {
+    try { await refreshFilesTab(); }
+    catch(e){ console.error(e); }
+  });
+
+
+
     // cuando subes un Excel local
   document.getElementById('fileExcel').addEventListener('change', async (e) => {
     const f = e.target.files?.[0];
@@ -1680,9 +1960,19 @@
 
   // seleccionar desde Firebase
   document.getElementById('fbFileSelect').addEventListener('change', async (e) => {
-    if (!e.target.value) return;
-    await loadExcelFromFirebase(e.target.value);
+    try{
+      const path = e.target.value;
+      if (!path) return;
+
+      clearAll();                 // ✅ limpia todo antes de cargar
+      await loadExcelFromFirebase(path);
+
+    }catch(err){
+      alert("Error al cargar Excel desde Firebase: " + (err?.message ?? String(err)));
+      console.error(err);
+    }
   });
+
 
   // cargar catálogo al iniciar
   window.addEventListener("load", async () => {
