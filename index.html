@@ -1475,11 +1475,13 @@
   // =========================
   async function run(){
     try {
+      if (!Array.isArray(temporalData)) temporalData = [];  
       if (isLoadingExcel) return alert("Espera: aún estoy cargando el Excel...");
 
       if (!temporalData.length) throw new Error('No hay datos. Carga un Excel/CSV o presiona "Cargar ejemplo".');
 
-      console.log("run() temporalData sample:", temporalData.slice(0,5));
+      console.log("run() temporalData sample:", Array.isArray(temporalData) ? temporalData.slice(0,5) : temporalData);
+
 
       const alpha = Math.min(0.50, Math.max(0.001, Number(document.getElementById('alpha').value) || 0.05));
 
