@@ -1883,24 +1883,27 @@
 
     const { storage, ref, getBytes } = window._fb;
 
-    // Descarga binaria SIN fetch (evita CORS)
+    // ✅ bytes en memoria (sin URL, sin fetch)
     const bytes = await getBytes(ref(storage, storagePath));
-
-    // Convierte Uint8Array -> ArrayBuffer exacto
     const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 
-    const filename = storagePath.split("/").pop() || "firebase.xlsx";
-    const fakeFile = new File([buf], filename, {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    });
+    const filename = storagePath.split("/").pop() || "firebase_file";
+    const ext = (filename.split(".").pop() || "").toLowerCase();
+
+    // MIME según extensión
+    let mime = "application/octet-stream";
+    if (ext === "csv")  mime = "text/csv";
+    if (ext === "xlsx") mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    if (ext === "xls")  mime = "application/vnd.ms-excel";
+
+    const fakeFile = new File([buf], filename, { type: mime });
 
     lastUploadedFile = fakeFile;
 
-    await loadExcelFile(fakeFile); // llena temporalData
-    console.log("✅ temporalData rows:", temporalData.length);
-
-    await run(); // calcula automáticamente
+    await loadExcelFile(fakeFile); // ✅ tu función ya soporta CSV
+    await run();                   // ✅ calcula
   }
+
 
 
   //==================
