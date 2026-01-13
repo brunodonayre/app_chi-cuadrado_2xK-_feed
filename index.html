@@ -1897,11 +1897,6 @@
       // 3) Chi2
       const {chi2, p, dof, E, V} = chiSquare2xK(obs);
 
-      // 3.1) tabla
-      const tableTT = buildTimeTreatmentTable(filteredData);
-        drawTimelineGridCanvas(tableTT, alpha, 2);
-
-
       const flatE = [...E[0], ...E[1]];
       const pctBelow5 = flatE.filter(x => x < 5).length / flatE.length * 100;
       const anyBelow1 = flatE.some(x => x < 1);
