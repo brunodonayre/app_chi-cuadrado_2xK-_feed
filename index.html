@@ -213,6 +213,7 @@
                 </div>
 
                 <div class="row g-3 mt-3">
+                  <!-- nSim / seed / alpha / btnRun -->
                   <div class="col-md-3">
                     <label class="form-label">Simulaciones Fisher MC</label>
                     <input class="form-control" id="nSim" type="number" min="1000" step="1000" value="100000" />
@@ -232,6 +233,35 @@
                     <button class="btn btn-primary w-100" id="btnRun">Calcular</button>
                   </div>
                 </div>
+
+                <!-- Filtro de tiempo para tabla comparativa -->
+                <div class="row g-3 mt-2">
+                  <div class="col-md-4">
+                    <label class="form-label">Ver comparativa en</label>
+                    <select class="form-select" id="timeMode">
+                      <option value="all" selected>Todo el periodo</option>
+                      <option value="single">Un tiempo específico</option>
+                      <option value="range">Rango de tiempos</option>
+                    </select>
+                    <div class="small-muted">Filtra la serie temporal antes de construir la tabla 3×K/2×K.</div>
+                  </div>
+                
+                  <div class="col-md-4" id="timeSingleWrap" style="display:none;">
+                    <label class="form-label">Tiempo</label>
+                    <select class="form-select" id="timeSingle"></select>
+                    <div class="small-muted">Se cargan automáticamente los tiempos disponibles.</div>
+                  </div>
+                
+                  <div class="col-md-4" id="timeRangeWrap" style="display:none;">
+                    <label class="form-label">Rango</label>
+                    <div class="d-flex gap-2">
+                      <input class="form-control" id="timeFrom" type="number" placeholder="Desde">
+                      <input class="form-control" id="timeTo" type="number" placeholder="Hasta">
+                    </div>
+                    <div class="small-muted">Incluye extremos: [desde, hasta].</div>
+                  </div>
+                </div>
+                <!-- Filtro de tiempo para tabla comparativa -->
 
                 <div class="small-muted mt-3">
                   Nota: la tabla 3×K se calcula como suma temporal, y el análisis global se hace sobre 2×K:
@@ -472,6 +502,89 @@
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+
+  // =========================
+  // Filtro de tiempo (UI + lógica)
+  // =========================
+  function getAvailableTimes(data){
+    const set = new Set();
+    for (const r of (data || [])){
+      const t = Number(r?.tiempo);
+      if (Number.isFinite(t)) set.add(t);
+    }
+    return Array.from(set).sort((a,b)=>a-b);
+  }
+  
+  function updateTimeControls(){
+    const mode = document.getElementById("timeMode")?.value || "all";
+    const singleWrap = document.getElementById("timeSingleWrap");
+    const rangeWrap  = document.getElementById("timeRangeWrap");
+    const selSingle  = document.getElementById("timeSingle");
+    const fromInp    = document.getElementById("timeFrom");
+    const toInp      = document.getElementById("timeTo");
+  
+    if (singleWrap) singleWrap.style.display = (mode === "single") ? "" : "none";
+    if (rangeWrap)  rangeWrap.style.display  = (mode === "range")  ? "" : "none";
+  
+    const times = getAvailableTimes(temporalData);
+  
+    // Poblar select de tiempo único
+    if (selSingle){
+      const prev = selSingle.value;
+      selSingle.innerHTML = "";
+      if (!times.length){
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "(sin tiempos)";
+        selSingle.appendChild(opt);
+      }else{
+        for (const t of times){
+          const opt = document.createElement("option");
+          opt.value = String(t);
+          opt.textContent = String(t);
+          selSingle.appendChild(opt);
+        }
+        // Mantener selección si existe, si no usa el primero
+        selSingle.value = times.includes(Number(prev)) ? prev : String(times[0]);
+      }
+    }
+  
+    // Setear valores por defecto para rango
+    if (fromInp && toInp){
+      const minT = times.length ? times[0] : 0;
+      const maxT = times.length ? times[times.length-1] : 0;
+  
+      if (!fromInp.value) fromInp.value = String(minT);
+      if (!toInp.value)   toInp.value   = String(maxT);
+    }
+  }
+  
+  function applyTimeFilter(data){
+    const mode = document.getElementById("timeMode")?.value || "all";
+    if (mode === "all") return data;
+  
+    if (mode === "single"){
+      const tSel = Number(document.getElementById("timeSingle")?.value);
+      if (!Number.isFinite(tSel)) return data;
+      return (data || []).filter(r => Number(r.tiempo) === tSel);
+    }
+  
+    if (mode === "range"){
+      const tFrom = Number(document.getElementById("timeFrom")?.value);
+      const tTo   = Number(document.getElementById("timeTo")?.value);
+      if (!Number.isFinite(tFrom) || !Number.isFinite(tTo)) return data;
+  
+      const lo = Math.min(tFrom, tTo);
+      const hi = Math.max(tFrom, tTo);
+      return (data || []).filter(r => {
+        const t = Number(r.tiempo);
+        return Number.isFinite(t) && t >= lo && t <= hi;
+      });
+    }
+  
+    return data;
+  }
+
 
   // =========================
   // Estado normalization
@@ -1486,7 +1599,13 @@
       const alpha = Math.min(0.50, Math.max(0.001, Number(document.getElementById('alpha').value) || 0.05));
 
       // 1) 3×K derivado
-      const {names, raw3} = build3xKFromTemporal(temporalData);
+      //const {names, raw3} = build3xKFromTemporal(temporalData);
+      // ✅ aplica filtro de tiempo
+      const filteredData = applyTimeFilter(temporalData);
+      
+      // 1) 3×K derivado (filtrado)
+      const {names, raw3} = build3xKFromTemporal(filteredData);
+
       if (names.length < 2) throw new Error('Necesitas al menos 2 tratamientos en la serie temporal.');
 
       // Validación: ningún tratamiento con total 0 (sumas temporales)
@@ -1533,7 +1652,8 @@
       drawBehaviorChartFrom3K(names, raw3.feed, raw3.excit, raw3.immob);
 
       // ✅ Áreas apiladas (100% por tiempo)
-      const seriesByTrt = buildSeriesFromTemporal(temporalData);
+      //const seriesByTrt = buildSeriesFromTemporal(temporalData);
+      const seriesByTrt = buildSeriesFromTemporal(filteredData);
       drawAreaChartsPercentByTreatment(seriesByTrt);
       drawAreaChartGlobal(seriesByTrt);
 
@@ -2003,6 +2123,24 @@
       setLoadingExcel(false);
     }
   });
+
+  document.getElementById("timeMode")?.addEventListener("change", () => {
+    updateTimeControls();
+  });
+  
+  document.getElementById("timeSingle")?.addEventListener("change", () => {
+    // opcional: auto-run si ya hay data
+    // if (temporalData?.length) run();
+  });
+  
+  document.getElementById("timeFrom")?.addEventListener("change", () => {
+    // if (temporalData?.length) run();
+  });
+  
+  document.getElementById("timeTo")?.addEventListener("change", () => {
+    // if (temporalData?.length) run();
+  });
+
 
 
 
