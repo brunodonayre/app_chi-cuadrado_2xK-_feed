@@ -315,6 +315,20 @@
                   </div>
                 </div>
 
+                <!---nuevo gráfico -->
+                <div class="mt-4">
+                  <div class="small-muted mb-2">Mapa temporal (Alimentación %) — barras recostadas por tratamiento y tiempo + significancia</div>
+                  <div class="chart-wrap" style="height: 360px;">
+                    <canvas id="timelineGrid"></canvas>
+                  </div>
+                  <div class="small-muted mt-2">
+                    * Comparaciones por tiempo: Fisher 2×2 (Alimentación vs No-alimentación) con ajuste Holm dentro de cada tiempo.
+                  </div>
+                </div>
+
+                <!---nuevo gráfico -->
+
+
                 <div class="d-flex gap-2 mt-3">
                   <button class="btn btn-outline-light" id="btnDownloadCSV">Descargar resumen CSV</button>
                 </div>
@@ -1154,6 +1168,245 @@
     });
   }
 
+  // =========================
+  // Nuevo gráfico - Timeline grid (Canvas) - barras recostadas por celda + brackets con asteriscos
+  // =========================
+  let timelineGridCtx = null;
+  
+  function buildTimeTreatmentTable(data){
+    // Normaliza: por tratamiento y tiempo => {feed, excit, immob}
+    const map = new Map(); // trt -> Map(time -> obj)
+    const treatmentsSet = new Set();
+    const timesSet = new Set();
+  
+    for (const r of (data || [])){
+      const trt = String(r?.tratamiento || '').trim();
+      const st  = normalizeEstado(r?.estado);
+      const t   = Number(r?.tiempo);
+      const v   = safeInt(r?.valor);
+  
+      if (!trt || !Number.isFinite(t)) continue;
+      if (!['alimentacion','excitacion','inmovil'].includes(st)) continue;
+  
+      treatmentsSet.add(trt);
+      timesSet.add(t);
+  
+      if (!map.has(trt)) map.set(trt, new Map());
+      const tm = map.get(trt);
+      if (!tm.has(t)) tm.set(t, {alimentacion:0, excitacion:0, inmovil:0});
+      tm.get(t)[st] += v;
+    }
+  
+    const treatments = Array.from(treatmentsSet);
+    const times = Array.from(timesSet).sort((a,b)=>a-b);
+  
+    // Matrices: feed, total, prop
+    const feed = Array.from({length: treatments.length}, ()=> Array(times.length).fill(0));
+    const total = Array.from({length: treatments.length}, ()=> Array(times.length).fill(0));
+    const prop = Array.from({length: treatments.length}, ()=> Array(times.length).fill(0));
+  
+    treatments.forEach((trt, i) => {
+      const tm = map.get(trt) || new Map();
+      times.forEach((tt, j) => {
+        const o = tm.get(tt) || {alimentacion:0, excitacion:0, inmovil:0};
+        const f = safeInt(o.alimentacion);
+        const nf = safeInt(o.excitacion) + safeInt(o.inmovil);
+        const tot = f + nf;
+        feed[i][j] = f;
+        total[i][j] = tot;
+        prop[i][j] = (tot > 0) ? (f / tot) : 0;
+      });
+    });
+  
+    return { treatments, times, feed, total, prop };
+  }
+  
+  function fisherPairsForTime(treatments, feedCol, totalCol){
+    // Por un tiempo fijo (columna): compara tratamientos i<j
+    // 2x2: [feed_i, nofeed_i] vs [feed_j, nofeed_j]
+    const rows = [];
+    const pvals = [];
+  
+    const K = treatments.length;
+    for (let i=0;i<K;i++){
+      for (let j=i+1;j<K;j++){
+        const a = safeInt(feedCol[i]);
+        const b = safeInt(totalCol[i] - feedCol[i]);
+        const c = safeInt(feedCol[j]);
+        const d = safeInt(totalCol[j] - feedCol[j]);
+  
+        // Si algún total es 0, no tiene sentido comparar
+        if ((a+b) === 0 || (c+d) === 0) continue;
+  
+        const fe = fisherExactTwoSided(a,b,c,d);
+        pvals.push(fe.p);
+        rows.push({i, j, p: fe.p});
+      }
+    }
+  
+    const adj = holm1D(pvals);
+    rows.forEach((r, idx) => r.p_holm = adj[idx]);
+  
+    // Ordena por p_holm (más significativo primero)
+    rows.sort((x,y)=> x.p_holm - y.p_holm);
+  
+    return rows;
+  }
+  
+  function drawTimelineGridCanvas(table, alpha=0.05, maxBracketsPerTime=2){
+    const canvas = document.getElementById("timelineGrid");
+    if (!canvas) return;
+  
+    // Ajuste de tamaño (nitidez)
+    const cssW = canvas.clientWidth || 900;
+    const cssH = canvas.clientHeight || 360;
+    const dpr = window.devicePixelRatio || 1;
+  
+    canvas.width  = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+  
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    timelineGridCtx = ctx;
+  
+    const { treatments, times, feed, total, prop } = table;
+    if (!treatments.length || !times.length){
+      ctx.clearRect(0,0,cssW,cssH);
+      ctx.fillStyle = "#111827";
+      ctx.font = "14px Segoe UI";
+      ctx.fillText("No hay datos para el mapa temporal.", 12, 24);
+      return;
+    }
+  
+    // Layout
+    const padL = 110;     // espacio para nombres de tratamientos
+    const padT = 30;      // título
+    const padB = 28;      // eje X
+    const padR = 20;      // margen derecho
+  
+    const gridW = cssW - padL - padR;
+    const gridH = cssH - padT - padB;
+  
+    const nR = treatments.length;
+    const nC = times.length;
+  
+    const cellW = gridW / nC;
+    const cellH = gridH / nR;
+  
+    ctx.clearRect(0,0,cssW,cssH);
+  
+    // Título
+    ctx.fillStyle = "#111827";
+    ctx.font = "bold 14px Segoe UI";
+    ctx.fillText("Mapa temporal de Alimentación (%) + significancia por tiempo", 12, 18);
+  
+    // Etiquetas Y (tratamientos)
+    ctx.font = "13px Segoe UI";
+    ctx.fillStyle = "#111827";
+    for (let i=0;i<nR;i++){
+      const y = padT + i*cellH + cellH*0.65;
+      ctx.fillText(treatments[i], 10, y);
+    }
+  
+    // Etiquetas X (tiempos)
+    ctx.fillStyle = "#111827";
+    ctx.font = "13px Segoe UI";
+    for (let j=0;j<nC;j++){
+      const x = padL + j*cellW + cellW*0.35;
+      const y = padT + gridH + 20;
+      ctx.fillText(String(times[j]), x, y);
+    }
+  
+    // Grid suave
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 1;
+    for (let j=0;j<=nC;j++){
+      const x = padL + j*cellW;
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT+gridH); ctx.stroke();
+    }
+    for (let i=0;i<=nR;i++){
+      const y = padT + i*cellH;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+gridW, y); ctx.stroke();
+    }
+  
+    // Barras recostadas por celda (proporción alimentación)
+    // (color único, como tu estilo actual; si quieres color por tratamiento lo hacemos luego)
+    for (let i=0;i<nR;i++){
+      for (let j=0;j<nC;j++){
+        const tot = total[i][j];
+        if (tot <= 0) continue;
+  
+        const p = prop[i][j]; // 0..1
+        const x0 = padL + j*cellW + 6;
+        const y0 = padT + i*cellH + cellH*0.25;
+        const h  = cellH*0.5;
+        const wMax = cellW - 14;
+        const w = Math.max(1, wMax * p);
+  
+        // fondo de barra (gris claro)
+        ctx.fillStyle = "#f3f4f6";
+        ctx.fillRect(x0, y0, wMax, h);
+  
+        // barra real (azul)
+        ctx.fillStyle = "#0f5b78";
+        ctx.fillRect(x0, y0, w, h);
+  
+        // % pequeño (opcional)
+        ctx.fillStyle = "#111827";
+        ctx.font = "11px Segoe UI";
+        ctx.fillText(`${Math.round(p*100)}%`, x0 + wMax - 34, y0 + h - 2);
+      }
+    }
+
+    // Significancia por tiempo: brackets a la derecha de cada columna
+    // Para cada tiempo j: correr comparaciones por pares usando feed vs nofeed
+    ctx.strokeStyle = "#0f5b78";
+    ctx.fillStyle = "#111827";
+    ctx.lineWidth = 1.5;
+    ctx.font = "bold 16px Segoe UI";
+  
+    for (let j=0;j<nC;j++){
+      // construir columnas feed/total para ese tiempo
+      const feedCol = treatments.map((_,i)=> feed[i][j]);
+      const totalCol = treatments.map((_,i)=> total[i][j]);
+  
+      const pairs = fisherPairsForTime(treatments, feedCol, totalCol)
+        .filter(r => Number.isFinite(r.p_holm) && r.p_holm < alpha)
+        .slice(0, maxBracketsPerTime);
+  
+      if (!pairs.length) continue;
+  
+      const xBase = padL + (j+1)*cellW - 6; // borde derecho de la columna
+      let offset = 0;
+  
+      for (const pr of pairs){
+        const i1 = pr.i;
+        const i2 = pr.j;
+        const y1 = padT + i1*cellH + cellH*0.5;
+        const y2 = padT + i2*cellH + cellH*0.5;
+  
+        const x = xBase + 8 + offset;  // bracket hacia fuera
+        const tick = 8;
+  
+        // bracket (┐│└) simple
+        ctx.beginPath();
+        ctx.moveTo(x, y1);
+        ctx.lineTo(x+tick, y1);
+        ctx.lineTo(x+tick, y2);
+        ctx.lineTo(x, y2);
+        ctx.stroke();
+  
+        // asterisco
+        ctx.fillText("*", x+tick+6, (y1+y2)/2 + 5);
+  
+        offset += 14; // separa brackets si hay más de uno
+      }
+    }
+  }
+
+  //nuevo gráfico
+
+
   function drawBehaviorChartFrom3K(names, feed, excit, immob){
     const totals = names.map((_,j)=> safeInt(feed[j]) + safeInt(excit[j]) + safeInt(immob[j]));
     if (totals.some(t => t === 0)) throw new Error('Hay tratamientos con total 0 en 3×K derivado.');
@@ -1656,6 +1909,16 @@
       const seriesByTrt = buildSeriesFromTemporal(filteredData);
       drawAreaChartsPercentByTreatment(seriesByTrt);
       drawAreaChartGlobal(seriesByTrt);
+
+      // =======================================================
+      // 🔹 Gráfico final: mapa temporal (barras recostadas + Fisher)
+      // =======================================================
+      const tableTT = buildTimeTreatmentTable(filteredData);
+      
+      // alpha ya existe arriba en run()
+      drawTimelineGridCanvas(tableTT, alpha, 2); 
+      // 2 = máximo número de brackets por tiempo
+
 
       // Pares y potencia
       const pairs = pairwiseComparisons(names, obs, alpha);
