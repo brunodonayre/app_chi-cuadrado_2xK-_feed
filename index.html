@@ -1284,19 +1284,7 @@
     canvas.height = Math.floor(cssH * dpr);
   
     const ctx = canvas.getContext("2d");
-    const RIGHT_MARGIN = 120; // ← espacio para brackets
-    const TOP_MARGIN   = 40;
-    const LEFT_MARGIN  = 160;
-    const ROW_HEIGHT   = 50;
-
-    // 2️⃣ Dimensiones dependientes del canvas
-    const usableWidth = canvas.width - LEFT_MARGIN - RIGHT_MARGIN;
-
-    // 3️⃣ Derivados (columnas / filas)
-    const nTimes = tableTT.times.length;
-    const colWidth = (usableWidth - (nTimes - 1) * COL_GAP) / nTimes;
-    
-    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   
     const { treatments, times, feedCumByT, totCumByT, propCumByT } = table || {};
     if (!treatments?.length || !times?.length){
@@ -1311,14 +1299,12 @@
     const padL = 150;  // nombres tratamientos
     const padT = 30;
     const padB = 28;
-    const padR = 30;
-  
+    const padR = 60;   // espacio para brackets
     const gridW = cssW - padL - padR;
     const gridH = cssH - padT - padB;
   
     const nR = treatments.length; // filas
     const nC = times.length;      // columnas
-  
     const cellW = gridW / nC;
     const cellH = gridH / nR;
   
@@ -1359,24 +1345,23 @@
     // Barras por celda
     for (let i=0;i<nR;i++){
       for (let j=0;j<nC;j++){
-        const tot = totCumByT[j][i];     // OJO: [tiempo][tratamiento]
+        const tot = safeInt(totCumByT[j]?.[i] ?? 0); // [tiempo][tratamiento]
         if (tot <= 0) continue;
   
-        const p = propCumByT[j][i];      // 0..1
-  
+        const p = Number(propCumByT[j]?.[i] ?? 0);   // 0..1
         const x0 = padL + j*cellW + 6;
         const y0 = padT + i*cellH + cellH*0.25;
         const h  = cellH*0.5;
         const wMax = cellW - 14;
-        const w = Math.max(1, wMax * p);
+        const w = Math.max(1, wMax * clamp01(p));
   
-        ctx.fillStyle = "#f3f4f6";      // fondo
+        ctx.fillStyle = "#f3f4f6"; // fondo
         ctx.fillRect(x0, y0, wMax, h);
   
-        ctx.fillStyle = "#0f5b78";      // barra
+        ctx.fillStyle = "#0f5b78"; // barra
         ctx.fillRect(x0, y0, w, h);
   
-        ctx.fillStyle = "#111827";      // %
+        ctx.fillStyle = "#111827"; // %
         ctx.font = "11px Segoe UI";
         ctx.fillText(`${Math.round(p*100)}%`, x0 + wMax - 34, y0 + h - 2);
       }
@@ -1389,17 +1374,16 @@
     ctx.font = "bold 16px Segoe UI";
   
     for (let j=0;j<nC;j++){
-      const feedCol  = feedCumByT[j].map(safeInt);
-      const totalCol = totCumByT[j].map(safeInt);
+      const feedCol  = (feedCumByT[j] || []).map(safeInt);
+      const totalCol = (totCumByT[j]  || []).map(safeInt);
   
-      // pares con Holm dentro del tiempo
       const pairsHolm = fisherPairsForTime(treatments, feedCol, totalCol)
         .filter(r => Number.isFinite(r.p_holm) && r.p_holm < alpha)
         .slice(0, maxBracketsPerTime);
   
       if (!pairsHolm.length) continue;
   
-      const xBase = padL + (j+1)*cellW - 6;
+      const xBase = padL + (j+1)*cellW - 6; // borde derecho de la columna
       let offset = 0;
   
       for (const pr of pairsHolm){
@@ -2395,23 +2379,24 @@
   document.getElementById('fbFileSelect').addEventListener('change', async (e) => {
     const path = e.target.value;
     if (!path) return;
-
+  
     try{
-      if (!currentUser) throw new Error("Debes iniciar sesión.");
-
+      if (!currentUser) {
+        alert("Debes iniciar sesión para cargar desde Firebase.");
+        e.target.value = "";
+        return;
+      }
+  
       setLoadingExcel(true);
-      clearAll();
-      temporalData = [];
-
       await loadExcelFromFirebase(path);
-
     }catch(err){
-      alert("Error al cargar Excel desde Firebase: " + (err?.message ?? String(err)));
+      alert(err?.message ?? String(err));
       console.error(err);
     }finally{
       setLoadingExcel(false);
     }
   });
+
 
   document.getElementById("timeMode")?.addEventListener("change", () => {
     updateTimeControls();
@@ -2459,6 +2444,22 @@
     downloadCSV(lastSummaryRows);
   });
 
+  // Inicializaciones
+  ensureAuthReady();
+  
+  // UI de filtro de tiempo
+  document.getElementById("timeMode")?.addEventListener("change", () => updateTimeControls());
+  document.getElementById("timeSingle")?.addEventListener("change", () => {});
+  document.getElementById("timeFrom")?.addEventListener("input", () => {});
+  document.getElementById("timeTo")?.addEventListener("input", () => {});
+  
+  // botones básicos
+  document.getElementById("btnRun")?.addEventListener("click", run);
+  document.getElementById("btnExample")?.addEventListener("click", async ()=>{ loadExample(); updateTimeControls(); await run(); });
+  document.getElementById("btnClear")?.addEventListener("click", clearAll);
+  document.getElementById("btnDownloadCSV")?.addEventListener("click", ()=>{ if(lastSummaryRows) downloadCSV(lastSummaryRows); });
+  
+  updateTimeControls();
 
 
 </script>
@@ -2467,5 +2468,6 @@
 
 <!-- Bootstrap JS (necesario para tabs) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>
