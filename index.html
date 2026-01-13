@@ -315,10 +315,10 @@
                   </div>
                 </div>
 
-                <!---nuevo gráfico -->
+                <!---nuevo gráfico 
                 <div class="mt-4">
                   <div class="small-muted mb-2">Mapa temporal (Alimentación %) — barras recostadas por tratamiento y tiempo + significancia</div>
-                  <div class="chart-wrap" style="height: 360px;">
+                  <div class="chart-wrap" style="height: 520px;">
                     <canvas id="timelineGrid"></canvas>
                   </div>
                   <div class="small-muted mt-2">
@@ -326,7 +326,7 @@
                   </div>
                 </div>
 
-                <!---nuevo gráfico -->
+                nuevo gráfico -->
 
 
                 <div class="d-flex gap-2 mt-3">
@@ -334,6 +334,20 @@
                 </div>
               </div>
             </div>
+
+            <!-- Mapa temporal en ancho completo -->
+            <div class="col-12">
+              <div class="card p-4">
+                <div class="small-muted mb-2">Mapa temporal (Alimentación %) — barras recostadas por tratamiento y tiempo + significancia</div>
+                <div class="chart-wrap" style="height: 520px;">
+                  <canvas id="timelineGrid"></canvas>
+                </div>
+                <div class="small-muted mt-2">
+                  * Comparaciones por tiempo: Fisher 2×2 (Alimentación vs No-alimentación) con ajuste Holm dentro de cada tiempo.
+                </div>
+              </div>
+            </div>
+
 
             <div class="col-12">
               <div class="card p-4">
@@ -1352,10 +1366,10 @@
   
         const p = propCumByT[j][i];      // 0..1
   
-        const x0 = padL + j*cellW + 6;
+        const x0 = padL + j*cellW + 8;
         const y0 = padT + i*cellH + (cellH - h)/2;
         const h  = Math.max(6, cellH * 0.28);   
-        const wMax = cellW - 14;
+        const wMax = cellW - 20;
         const w = Math.max(1, wMax * p);
   
         ctx.fillStyle = "#f3f4f6";      // fondo
