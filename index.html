@@ -1180,19 +1180,18 @@
         .filter(Boolean)
     )];
   
-    // 1) juntar tiempos válidos
     const times = [...new Set(
       (temporalData || [])
         .map(d => Number(d.tiempo))
         .filter(t => Number.isFinite(t))
     )].sort((a,b)=>a-b);
   
-    // 2) matrices por tiempo (no acumuladas) para luego acumular
+    const tIndex  = new Map(times.map((t,i)=>[t,i]));
+    const trIndex = new Map(treatments.map((tr,i)=>[tr,i]));
+  
+    // por tiempo (no acumulado)
     const feedByT = times.map(()=> Array(treatments.length).fill(0));
     const totByT  = times.map(()=> Array(treatments.length).fill(0));
-  
-    const tIndex = new Map(times.map((t,i)=>[t,i]));
-    const trIndex = new Map(treatments.map((tr,i)=>[tr,i]));
   
     for (const r of (temporalData || [])){
       const tr = String(r.tratamiento || '').trim();
@@ -1204,33 +1203,41 @@
       const st = normalizeEstado(r.estado);
       const v  = safeInt(r.valor);
   
+      if (!['alimentacion','excitacion','inmovil'].includes(st)) continue;
+  
       const iT = tIndex.get(tt);
       const j  = trIndex.get(tr);
   
-      // total siempre suma los 3 estados
-      if (['alimentacion','excitacion','inmovil'].includes(st)){
-        totByT[iT][j] += v;
-        if (st === 'alimentacion') feedByT[iT][j] += v;
-      }
+      totByT[iT][j] += v;
+      if (st === 'alimentacion') feedByT[iT][j] += v;
     }
   
-    // 3) acumular en el tiempo
+    // acumulado
     const feedCumByT = [];
     const totCumByT  = [];
+    const propCumByT = [];
+  
     let runningFeed = Array(treatments.length).fill(0);
     let runningTot  = Array(treatments.length).fill(0);
   
-    for (let i=0;i<times.length;i++){
-      for (let j=0;j<treatments.length;j++){
-        runningFeed[j] += feedByT[i][j];
-        runningTot[j]  += totByT[i][j];
+    for (let t=0; t<times.length; t++){
+      for (let j=0; j<treatments.length; j++){
+        runningFeed[j] += feedByT[t][j];
+        runningTot[j]  += totByT[t][j];
       }
-      feedCumByT.push(runningFeed.slice());
-      totCumByT.push(runningTot.slice());
+  
+      const feedRow = runningFeed.slice();
+      const totRow  = runningTot.slice();
+      const propRow = totRow.map((tot,j)=> (tot > 0 ? feedRow[j]/tot : 0));
+  
+      feedCumByT.push(feedRow);
+      totCumByT.push(totRow);
+      propCumByT.push(propRow);
     }
   
-    return { times, treatments, feedCumByT, totCumByT };
+    return { times, treatments, feedCumByT, totCumByT, propCumByT };
   }
+
 
   
   function fisherPairsForTime(treatments, feedCol, totalCol){
