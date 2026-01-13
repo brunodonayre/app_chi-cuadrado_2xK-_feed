@@ -1180,18 +1180,19 @@
         .filter(Boolean)
     )];
   
+    // 1) juntar tiempos válidos
     const times = [...new Set(
       (temporalData || [])
         .map(d => Number(d.tiempo))
         .filter(t => Number.isFinite(t))
     )].sort((a,b)=>a-b);
   
-    const tIndex  = new Map(times.map((t,i)=>[t,i]));
-    const trIndex = new Map(treatments.map((tr,i)=>[tr,i]));
-  
-    // por tiempo (no acumulado)
+    // 2) matrices por tiempo (no acumuladas) para luego acumular
     const feedByT = times.map(()=> Array(treatments.length).fill(0));
     const totByT  = times.map(()=> Array(treatments.length).fill(0));
+  
+    const tIndex = new Map(times.map((t,i)=>[t,i]));
+    const trIndex = new Map(treatments.map((tr,i)=>[tr,i]));
   
     for (const r of (temporalData || [])){
       const tr = String(r.tratamiento || '').trim();
@@ -1203,41 +1204,33 @@
       const st = normalizeEstado(r.estado);
       const v  = safeInt(r.valor);
   
-      if (!['alimentacion','excitacion','inmovil'].includes(st)) continue;
-  
       const iT = tIndex.get(tt);
       const j  = trIndex.get(tr);
   
-      totByT[iT][j] += v;
-      if (st === 'alimentacion') feedByT[iT][j] += v;
+      // total siempre suma los 3 estados
+      if (['alimentacion','excitacion','inmovil'].includes(st)){
+        totByT[iT][j] += v;
+        if (st === 'alimentacion') feedByT[iT][j] += v;
+      }
     }
   
-    // acumulado
+    // 3) acumular en el tiempo
     const feedCumByT = [];
     const totCumByT  = [];
-    const propCumByT = [];
-  
     let runningFeed = Array(treatments.length).fill(0);
     let runningTot  = Array(treatments.length).fill(0);
   
-    for (let t=0; t<times.length; t++){
-      for (let j=0; j<treatments.length; j++){
-        runningFeed[j] += feedByT[t][j];
-        runningTot[j]  += totByT[t][j];
+    for (let i=0;i<times.length;i++){
+      for (let j=0;j<treatments.length;j++){
+        runningFeed[j] += feedByT[i][j];
+        runningTot[j]  += totByT[i][j];
       }
-  
-      const feedRow = runningFeed.slice();
-      const totRow  = runningTot.slice();
-      const propRow = totRow.map((tot,j)=> (tot > 0 ? feedRow[j]/tot : 0));
-  
-      feedCumByT.push(feedRow);
-      totCumByT.push(totRow);
-      propCumByT.push(propRow);
+      feedCumByT.push(runningFeed.slice());
+      totCumByT.push(runningTot.slice());
     }
   
-    return { times, treatments, feedCumByT, totCumByT, propCumByT };
+    return { times, treatments, feedCumByT, totCumByT };
   }
-
 
   
   function fisherPairsForTime(treatments, feedCol, totalCol){
@@ -1276,6 +1269,7 @@
     const canvas = document.getElementById("timelineGrid");
     if (!canvas) return;
   
+    // Ajuste de tamaño (nitidez)
     const cssW = canvas.clientWidth || 900;
     const cssH = canvas.clientHeight || 360;
     const dpr = window.devicePixelRatio || 1;
@@ -1284,10 +1278,11 @@
     canvas.height = Math.floor(cssH * dpr);
   
     const ctx = canvas.getContext("2d");
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    timelineGridCtx = ctx;
   
-    const { treatments, times, feedCumByT, totCumByT, propCumByT } = table || {};
-    if (!treatments?.length || !times?.length){
+    const { treatments, times, feed, total, prop } = table;
+    if (!treatments.length || !times.length){
       ctx.clearRect(0,0,cssW,cssH);
       ctx.fillStyle = "#111827";
       ctx.font = "14px Segoe UI";
@@ -1296,15 +1291,17 @@
     }
   
     // Layout
-    const padL = 150;  // nombres tratamientos
-    const padT = 30;
-    const padB = 28;
-    const padR = 60;   // espacio para brackets
+    const padL = 110;     // espacio para nombres de tratamientos
+    const padT = 30;      // título
+    const padB = 28;      // eje X
+    const padR = 20;      // margen derecho
+  
     const gridW = cssW - padL - padR;
     const gridH = cssH - padT - padB;
   
-    const nR = treatments.length; // filas
-    const nC = times.length;      // columnas
+    const nR = treatments.length;
+    const nC = times.length;
+  
     const cellW = gridW / nC;
     const cellH = gridH / nR;
   
@@ -1313,16 +1310,18 @@
     // Título
     ctx.fillStyle = "#111827";
     ctx.font = "bold 14px Segoe UI";
-    ctx.fillText("Mapa temporal de Alimentación (%) + significancia por tiempo (Holm)", 12, 18);
+    ctx.fillText("Mapa temporal de Alimentación (%) + significancia por tiempo", 12, 18);
   
-    // Etiquetas Y
+    // Etiquetas Y (tratamientos)
     ctx.font = "13px Segoe UI";
+    ctx.fillStyle = "#111827";
     for (let i=0;i<nR;i++){
       const y = padT + i*cellH + cellH*0.65;
       ctx.fillText(treatments[i], 10, y);
     }
   
-    // Etiquetas X
+    // Etiquetas X (tiempos)
+    ctx.fillStyle = "#111827";
     ctx.font = "13px Segoe UI";
     for (let j=0;j<nC;j++){
       const x = padL + j*cellW + cellW*0.35;
@@ -1330,7 +1329,7 @@
       ctx.fillText(String(times[j]), x, y);
     }
   
-    // Grid
+    // Grid suave
     ctx.strokeStyle = "#e5e7eb";
     ctx.lineWidth = 1;
     for (let j=0;j<=nC;j++){
@@ -1342,58 +1341,77 @@
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+gridW, y); ctx.stroke();
     }
   
-    // Barras por celda
+    // Barras recostadas por celda (proporción alimentación)
+    // (color único, como tu estilo actual; si quieres color por tratamiento lo hacemos luego)
     for (let i=0;i<nR;i++){
       for (let j=0;j<nC;j++){
-        const tot = safeInt(totCumByT[j]?.[i] ?? 0); // [tiempo][tratamiento]
+        const tot = total[i][j];
         if (tot <= 0) continue;
   
-        const p = Number(propCumByT[j]?.[i] ?? 0);   // 0..1
+        const p = prop[i][j]; // 0..1
         const x0 = padL + j*cellW + 6;
         const y0 = padT + i*cellH + cellH*0.25;
         const h  = cellH*0.5;
         const wMax = cellW - 14;
-        const w = Math.max(1, wMax * clamp01(p));
+        const w = Math.max(1, wMax * p);
   
-        ctx.fillStyle = "#f3f4f6"; // fondo
+        // fondo de barra (gris claro)
+        ctx.fillStyle = "#f3f4f6";
         ctx.fillRect(x0, y0, wMax, h);
   
-        ctx.fillStyle = "#0f5b78"; // barra
+        // barra real (azul)
+        ctx.fillStyle = "#0f5b78";
         ctx.fillRect(x0, y0, w, h);
   
-        ctx.fillStyle = "#111827"; // %
+        // % pequeño (opcional)
+        ctx.fillStyle = "#111827";
         ctx.font = "11px Segoe UI";
         ctx.fillText(`${Math.round(p*100)}%`, x0 + wMax - 34, y0 + h - 2);
       }
     }
-  
-    // Brackets de significancia por tiempo
+
+    // Significancia por tiempo: brackets a la derecha de cada columna
+    // Para cada tiempo j: correr comparaciones por pares usando feed vs nofeed
     ctx.strokeStyle = "#0f5b78";
     ctx.fillStyle = "#111827";
     ctx.lineWidth = 1.5;
     ctx.font = "bold 16px Segoe UI";
   
     for (let j=0;j<nC;j++){
-      const feedCol  = (feedCumByT[j] || []).map(safeInt);
-      const totalCol = (totCumByT[j]  || []).map(safeInt);
+      // construir columnas feed/total para ese tiempo
+      //const feedCol = treatments.map((_,i)=> feed[i][j]);
+      //const totalCol = treatments.map((_,i)=> total[i][j]);
+      const feedCol = tableTT.feedCumByT[tIdx];
+      const totalCol = tableTT.totCumByT[tIdx];
+      
+      const prop = totalCol[j] > 0 ? (feedCol[j] / totalCol[j]) : 0;
+      // barra = prop (acumulado)
+
   
-      const pairsHolm = fisherPairsForTime(treatments, feedCol, totalCol)
-        .filter(r => Number.isFinite(r.p_holm) && r.p_holm < alpha)
+      //const pairs = fisherPairsForTime(treatments, feedCol, totalCol)
+      //  .filter(r => Number.isFinite(r.p_holm) && r.p_holm < alpha)
+      //  .slice(0, maxBracketsPerTime);
+
+      const pairs = fisherPairsForTime(tableTT.treatments, feedCol, totalCol)
+        .filter(r => Number.isFinite(r.p) && r.p < alpha)
         .slice(0, maxBracketsPerTime);
+
   
-      if (!pairsHolm.length) continue;
+      if (!pairs.length) continue;
   
       const xBase = padL + (j+1)*cellW - 6; // borde derecho de la columna
       let offset = 0;
   
-      for (const pr of pairsHolm){
-        const i1 = pr.i, i2 = pr.j;
+      for (const pr of pairs){
+        const i1 = pr.i;
+        const i2 = pr.j;
         const y1 = padT + i1*cellH + cellH*0.5;
         const y2 = padT + i2*cellH + cellH*0.5;
   
-        const x = xBase + 8 + offset;
+        const x = xBase + 8 + offset;  // bracket hacia fuera
         const tick = 8;
   
+        // bracket (┐│└) simple
         ctx.beginPath();
         ctx.moveTo(x, y1);
         ctx.lineTo(x+tick, y1);
@@ -1401,13 +1419,13 @@
         ctx.lineTo(x, y2);
         ctx.stroke();
   
+        // asterisco
         ctx.fillText("*", x+tick+6, (y1+y2)/2 + 5);
   
-        offset += 14;
+        offset += 14; // separa brackets si hay más de uno
       }
     }
   }
-
 
   //nuevo gráfico
 
@@ -1880,11 +1898,6 @@
 
       // 3) Chi2
       const {chi2, p, dof, E, V} = chiSquare2xK(obs);
-
-      // 3.1) tabla
-      const tableTT = buildTimeTreatmentTable(filteredData);
-        drawTimelineGridCanvas(tableTT, alpha, 2);
-
 
       const flatE = [...E[0], ...E[1]];
       const pctBelow5 = flatE.filter(x => x < 5).length / flatE.length * 100;
@@ -2379,24 +2392,23 @@
   document.getElementById('fbFileSelect').addEventListener('change', async (e) => {
     const path = e.target.value;
     if (!path) return;
-  
+
     try{
-      if (!currentUser) {
-        alert("Debes iniciar sesión para cargar desde Firebase.");
-        e.target.value = "";
-        return;
-      }
-  
+      if (!currentUser) throw new Error("Debes iniciar sesión.");
+
       setLoadingExcel(true);
+      clearAll();
+      temporalData = [];
+
       await loadExcelFromFirebase(path);
+
     }catch(err){
-      alert(err?.message ?? String(err));
+      alert("Error al cargar Excel desde Firebase: " + (err?.message ?? String(err)));
       console.error(err);
     }finally{
       setLoadingExcel(false);
     }
   });
-
 
   document.getElementById("timeMode")?.addEventListener("change", () => {
     updateTimeControls();
@@ -2444,22 +2456,6 @@
     downloadCSV(lastSummaryRows);
   });
 
-  // Inicializaciones
-  ensureAuthReady();
-  
-  // UI de filtro de tiempo
-  document.getElementById("timeMode")?.addEventListener("change", () => updateTimeControls());
-  document.getElementById("timeSingle")?.addEventListener("change", () => {});
-  document.getElementById("timeFrom")?.addEventListener("input", () => {});
-  document.getElementById("timeTo")?.addEventListener("input", () => {});
-  
-  // botones básicos
-  document.getElementById("btnRun")?.addEventListener("click", run);
-  document.getElementById("btnExample")?.addEventListener("click", async ()=>{ loadExample(); updateTimeControls(); await run(); });
-  document.getElementById("btnClear")?.addEventListener("click", clearAll);
-  document.getElementById("btnDownloadCSV")?.addEventListener("click", ()=>{ if(lastSummaryRows) downloadCSV(lastSummaryRows); });
-  
-  updateTimeControls();
 
 
 </script>
@@ -2468,6 +2464,5 @@
 
 <!-- Bootstrap JS (necesario para tabs) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
 </body>
 </html>
