@@ -1313,10 +1313,14 @@
     const padL = 150;  // nombres tratamientos
     const padT = 30;
     const padB = 28;
-    const padR = 30;
+    const padR = 20;
+    const sigGutter = 220;  // ✅ espacio exclusivo para llaves/asteriscos (sube a 300 si quieres)
+
   
-    const gridW = cssW - padL - padR;
-    const gridH = cssH - padT - padB;
+    //const gridW = cssW - padL - padR;
+    //const gridH = cssH - padT - padB;
+    const gridW = padL + times.length * cellW + padR;
+    const cssW  = gridW + sigGutter; 
   
     const nR = treatments.length; // filas
     const nC = times.length;      // columnas
@@ -1401,8 +1405,11 @@
         .slice(0, maxBracketsPerTime);
   
       if (!pairsHolm.length) continue;
-  
-      const xBase = padL + (j+1)*cellW - 6;
+
+      const xGridRight = padL + times.length * cellW; // borde derecho del grid
+
+      //const xBase = padL + (j+1)*cellW - 6;
+      const xBase = xGridRight + 18;   // ✅ arranca en el gutter, no dentro del grid
       let offset = 0;
   
       for (const pr of pairsHolm){
