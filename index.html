@@ -2470,9 +2470,10 @@
 
 
   //==================
-  // Nueva sección
+  // Nueva sección (EVENTOS FINALES + ARRANQUE)
   //==================
-    
+  
+  // Login
   document.getElementById("btnLogin")?.addEventListener("click", async () => {
     try{
       const { auth, provider, signInWithPopup } = window._fb;
@@ -2482,17 +2483,76 @@
       console.error(e);
     }
   });
-
+  
+  // Logout
   document.getElementById("btnLogout")?.addEventListener("click", async () => {
     try{
       const { auth, signOut } = window._fb;
       await signOut(auth);
-      clearAll();
     }catch(e){
       alert(e?.message ?? String(e));
       console.error(e);
     }
   });
+  
+  // Subir Excel a Firebase (usa lastUploadedFile)
+  document.getElementById("btnUploadFirebase")?.addEventListener("click", async () => {
+    try{
+      if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
+      if (!lastUploadedFile) throw new Error("Primero carga un Excel/CSV (input) antes de guardarlo en Firebase.");
+  
+      const displayName = (document.getElementById("fbFileName")?.value || "").trim();
+      if (!displayName) throw new Error("Escribe un nombre para guardar en Firebase.");
+  
+      await uploadExcelToFirebase(lastUploadedFile, displayName);
+  
+      alert("✅ Guardado en Firebase");
+      document.getElementById("fbFileName").value = "";
+  
+      // refresca select + tab archivos
+      await loadExcelCatalog();
+      await refreshFilesTab();
+    }catch(e){
+      alert(e?.message ?? String(e));
+      console.error(e);
+    }
+  });
+  
+  // Refrescar catálogo avanzado (tab Archivos)
+  document.getElementById("btnRefreshCatalog")?.addEventListener("click", async () => {
+    try{
+      await refreshFilesTab();
+    }catch(e){
+      alert(e?.message ?? String(e));
+      console.error(e);
+    }
+  });
+  
+  // Botón Calcular
+  document.getElementById("btnRun")?.addEventListener("click", async () => {
+    await run();
+  });
+  
+  // Descargar CSV
+  document.getElementById("btnDownloadCSV")?.addEventListener("click", () => {
+    if (!lastSummaryRows?.length) return alert("Primero calcula para generar el resumen.");
+    downloadCSV(lastSummaryRows);
+  });
+  
+  // Arranque al cargar
+  window.addEventListener("DOMContentLoaded", async () => {
+    try{
+      updateTimeControls();      // por si está vacío
+      await ensureAuthReady();   // setea currentUser + carga catálogo si hay sesión
+      // opcional: si ya está logueado, llena también la pestaña Archivos
+      if (currentUser){
+        await refreshFilesTab();
+      }
+    }catch(e){
+      console.error(e);
+    }
+  });
+
 
 
   // =========================
