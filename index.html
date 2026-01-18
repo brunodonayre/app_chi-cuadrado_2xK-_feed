@@ -1246,11 +1246,12 @@
       // Escala de tamaño por tratamiento (suave)
       const maxV = Math.max(1, ...rows.map(r => r.valor));
       const sizeScale = (v) => {
-        // escala perceptual fuerte (como tu ejemplo)
-        const minR = 6;    // radio mínimo visible
-        const maxR = 28;   // radio máximo claro
-        return minR + (v / maxV) * (maxR - minR);
+        const minR = 6;
+        const maxR = 30;
+        const p = 1.25; // >1 exagera un poco los grandes
+        return minR + Math.pow(v / maxV, p) * (maxR - minR);
       };
+
 
   
       // Dataset por estado (para leyenda separada)
