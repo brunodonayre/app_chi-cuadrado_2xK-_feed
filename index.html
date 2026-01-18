@@ -1240,30 +1240,35 @@
     const treatments = [...new Set(clean.map(r => r.tratamiento))]
       .sort((a,b)=>a.localeCompare(b));
   
-    treatments.forEach((trt, idx) => {
-      const rows = clean.filter(r => r.tratamiento === trt);
-  
-      // Escala de tamaño por tratamiento (suave)
-      const maxV = Math.max(1, ...rows.map(r => r.valor));
-      const sizeScale = (v) => {
-        const minR = 6;
-        const maxR = 30;
-        const p = 1.25; // >1 exagera un poco los grandes
-        return minR + Math.pow(v / maxV, p) * (maxR - minR);
-      };
+      treatments.forEach((trt, idx) => {
+        const rows = clean.filter(r => r.tratamiento === trt);
+      
+        // ✅ Escala de tamaño por tratamiento (bien notoria)
+        const vals = rows.map(r => Number(r.valor)).filter(Number.isFinite);
+        const maxV = Math.max(1, ...vals);
+      
+        const sizeScale = (v) => {
+          const minR = 6;    // mínimo visible
+          const maxR = 38;   // ✅ más grande (se nota)
+          const p = 1.0;     // ✅ lineal (más diferencia visual)
+          const t = Math.max(0, Math.min(1, Number(v) / maxV));
+          return minR + Math.pow(t, p) * (maxR - minR);
+        };
 
-
-  
+        
       // Dataset por estado (para leyenda separada)
       const mkDataset = (estadoKey, label) => {
         const pts = rows
           .filter(r => r.estado === estadoKey)
-          .map(r => ({
-            x: r.tiempo,                      // 👈 category label
-            y: yLabelFromKey(estadoKey),      // 👈 category label
-            r: sizeScale(r.valor),
-            _v: r.valor
-          }));
+          .map(r => {
+            const v = Number(r.valor); // ✅ aquí sí existe r
+            return {
+              x: String(r.tiempo),                 // categórico
+              y: yLabelFromKey(estadoKey),         // categórico
+              r: sizeScale(v),                     // ✅ tamaño real
+              _v: v                                // ✅ número para datalabels/tooltip
+            };
+          });
         return { label, data: pts };
       };
   
