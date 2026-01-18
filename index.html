@@ -1299,7 +1299,41 @@
       wrap.appendChild(card);
   
       const canvas = document.getElementById(`bubble_${idx}`);
-  
+
+      // aqui
+      const bubbleValueLabels = {
+        id: "bubbleValueLabels",
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+      
+          ctx.save();
+          ctx.font = "bold 12px sans-serif";
+          ctx.fillStyle = "#111827";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+      
+          chart.data.datasets.forEach((dataset, di) => {
+            const meta = chart.getDatasetMeta(di);
+            if (meta.type !== "bubble") return;
+      
+            meta.data.forEach((el, i) => {
+              const raw = dataset.data[i];
+              if (!raw || raw._v == null) return;
+      
+              const { x, y } = el.getProps(["x", "y"], true);
+              const radius = el.options?.radius ?? raw.r ?? 0;
+      
+              // 👇 texto encima de la burbuja
+              ctx.fillText(String(raw._v), x, y - (radius + 10));
+            });
+          });
+      
+          ctx.restore();
+        }
+      };
+      
+      // aqui
+        
       const ch = new Chart(canvas, {
         type: "bubble",
         data: { datasets: ds },
@@ -1367,10 +1401,12 @@
             }
 
           }
-        }
+        },
+        plugins: [bubbleValueLabels]
       });
   
       bubbleCharts.push(ch);
+        
     });
   }
 
