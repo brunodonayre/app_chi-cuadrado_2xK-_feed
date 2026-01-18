@@ -1837,28 +1837,27 @@
   // 3×K derivado desde temporalData
   // =========================
   function build3xKFromTemporal(temporalData){
-    const treatments = [...new Set(temporalData.map(d => String(d.tratamiento || '').trim()).filter(Boolean))];
-
+    const treatments = [...new Set(
+      (temporalData || [])
+        .map(d => String(d.tratamiento || '').trim())
+        .filter(Boolean)
+    )].sort((a,b)=>a.localeCompare(b));
+  
     const feed  = [];
     const excit = [];
     const immob = [];
-
+  
     treatments.forEach(trt => {
-
-      // ✅ X categórico en orden (por tiempo)
-      const xLabels = [...new Set(rows.map(r => r.tiempo))]
-        .filter(v => Number.isFinite(v))
-        .sort((a,b) => a - b)
-        .map(v => String(v));
-
-      const rows = temporalData.filter(d => String(d.tratamiento || '').trim() === trt);
-      feed.push(sum(rows.filter(d => normalizeEstado(d.estado) === 'alimentacion').map(d => safeInt(d.valor))));
-      excit.push(sum(rows.filter(d => normalizeEstado(d.estado) === 'excitacion').map(d => safeInt(d.valor))));
-      immob.push(sum(rows.filter(d => normalizeEstado(d.estado) === 'inmovil').map(d => safeInt(d.valor))));
+      const rowsTrt = (temporalData || []).filter(d => String(d.tratamiento || '').trim() === trt);
+  
+      feed.push(sum(rowsTrt.filter(d => normalizeEstado(d.estado) === 'alimentacion').map(d => safeInt(d.valor))));
+      excit.push(sum(rowsTrt.filter(d => normalizeEstado(d.estado) === 'excitacion').map(d => safeInt(d.valor))));
+      immob.push(sum(rowsTrt.filter(d => normalizeEstado(d.estado) === 'inmovil').map(d => safeInt(d.valor))));
     });
-
+  
     return { names: treatments, raw3: { feed, excit, immob } };
   }
+
 
   // =========================
   // Downloads
