@@ -1244,7 +1244,7 @@
       .map(t => String(t));
   
     // ✅ categorías Y (estados)
-    const yCats = ["Inmóvil", "Excitación", "Alimentación"];
+    const yCats = [ "Alimentación", "Excitación","Inmóvil"];
     const yLabelFromKey = (k) => (
       k === "alimentacion" ? "Alimentación" :
       k === "excitacion"   ? "Excitación"   :
@@ -1350,7 +1350,7 @@
           plugins: {
             title: {
               display: true,
-              text: `Burbujas (Tiempo vs Estado) — ${trt}`,
+              text: `Frecuencia de comportamiento — ${trt}`,
               color: "#111827",
               font: { size: 14, weight: "bold" }
             },
