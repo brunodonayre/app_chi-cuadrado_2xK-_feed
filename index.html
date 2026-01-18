@@ -30,6 +30,15 @@
     .pill-warn { background:#7c2d12; color:#fed7aa; }
     .pill-bad { background:#7f1d1d; color:#fecaca; }
 
+    /* === AJUSTE GRAFICO ACUMULADO === */
+    #acumWrap {
+      height: 380px;       /* antes más chico */
+    }
+    
+    #chartAcum {
+      height: 100% !important;
+    }
+
     /* Cards siguen oscuras, tablas en blanco */
     .card { background: #0f172a; color: #e5e7eb; }
     .table { background: #ffffff; color: #000000; }
@@ -1313,14 +1322,10 @@
     const padL = 150;  // nombres tratamientos
     const padT = 30;
     const padB = 28;
-    const padR = 20;
-    const sigGutter = 220;  // ✅ espacio exclusivo para llaves/asteriscos (sube a 300 si quieres)
-
+    const padR = 30;
   
-    //const gridW = cssW - padL - padR;
-    //const gridH = cssH - padT - padB;
-    const gridW = padL + times.length * cellW + padR;
-    const cssW  = gridW + sigGutter; 
+    const gridW = cssW - padL - padR;
+    const gridH = cssH - padT - padB;
   
     const nR = treatments.length; // filas
     const nC = times.length;      // columnas
@@ -1405,11 +1410,8 @@
         .slice(0, maxBracketsPerTime);
   
       if (!pairsHolm.length) continue;
-
-      const xGridRight = padL + times.length * cellW; // borde derecho del grid
-
-      //const xBase = padL + (j+1)*cellW - 6;
-      const xBase = xGridRight + 18;   // ✅ arranca en el gutter, no dentro del grid
+  
+      const xBase = padL + (j+1)*cellW - 6;
       let offset = 0;
   
       for (const pr of pairsHolm){
@@ -1866,6 +1868,146 @@
       }
     }
   }
+
+  // =====================================
+  // ✅ HANDLERS (Local + Firebase) + Time UI
+  // =====================================
+  
+  // 1) Cambiar modo de tiempo (all/single/range)
+  document.getElementById("timeMode")?.addEventListener("change", () => {
+    updateTimeControls();
+  });
+  
+  // 2) Cambiar tiempo único
+  document.getElementById("timeSingle")?.addEventListener("change", () => {
+    // no hace nada extra; el filtro se aplica en run()
+  });
+  
+  // 3) Carga LOCAL (input file)
+  document.getElementById("fileExcel")?.addEventListener("change", async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+  
+    lastUploadedFile = f;
+  
+    try {
+      setLoadingExcel(true);
+      await loadExcelFile(f);
+  
+      // ✅ Actualiza los combos/rangos de tiempo apenas termina de cargar
+      updateTimeControls();
+  
+      alert("✅ Excel/CSV cargado. Ya puedes presionar Calcular.");
+    } catch (err) {
+      alert(err?.message ?? String(err));
+      console.error(err);
+    } finally {
+      setLoadingExcel(false);
+    }
+  });
+  
+  // 4) Cargar desde Firebase cuando elijo en el select
+  document.getElementById("fbFileSelect")?.addEventListener("change", async (e) => {
+    const storagePath = e.target.value;
+    if (!storagePath) return;
+  
+    try {
+      setLoadingExcel(true);
+      await loadExcelFromFirebase(storagePath);
+  
+      // ✅ refresca control de tiempos
+      updateTimeControls();
+  
+      alert("✅ Excel cargado desde Firebase. Ya puedes presionar Calcular.");
+    } catch (err) {
+      alert(err?.message ?? String(err));
+      console.error(err);
+    } finally {
+      setLoadingExcel(false);
+    }
+  });
+  
+  // 5) Botón "Cargar ejemplo"
+  document.getElementById("btnExample")?.addEventListener("click", () => {
+    loadExample();
+    updateTimeControls();
+    alert("✅ Ejemplo cargado. Ya puedes presionar Calcular.");
+  });
+  
+  // 6) Botón "Limpiar"
+  document.getElementById("btnClear")?.addEventListener("click", () => {
+    clearAll();
+    updateTimeControls();
+  });
+  
+  
+  // =====================================
+  // ✅ IMPLEMENTACIÓN COMPLETA: loadExcelFromFirebase
+  // (Te quedó truncada en tu pegado: "const url...")
+  // =====================================
+  async function loadExcelFromFirebase(storagePath){
+    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
+    if (!window._fb) throw new Error("Firebase no está listo.");
+  
+    const { storage, ref, getDownloadURL } = window._fb;
+  
+    // 1) URL firmada del archivo
+    const url = await getDownloadURL(ref(storage, storagePath));
+  
+    // 2) Descarga binaria
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`No pude descargar el Excel (${resp.status})`);
+    const buf = await resp.arrayBuffer();
+  
+    // 3) Leer como XLSX
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+  
+    if (!rows.length) throw new Error("El Excel está vacío (hoja 1).");
+  
+    // 4) Detectar formato temporal largo vs legacy 3×K
+    const cols = Object.keys(rows[0] || {});
+    const lowerCols = cols.map(c => String(c).toLowerCase().trim());
+  
+    const cTrat = cols[lowerCols.indexOf("tratamiento")];
+    const cEst  = cols[lowerCols.indexOf("estado")];
+    const cTime = cols[lowerCols.indexOf("tiempo")];
+    const cVal  = cols[lowerCols.indexOf("valor")];
+  
+    // Formato temporal largo
+    if (cTrat && cEst && cTime && cVal){
+      temporalData = rows.map(r => ({
+        tratamiento: String(r[cTrat]).trim(),
+        estado: normalizeEstado(r[cEst]),
+        tiempo: Number(r[cTime]),
+        valor: safeInt(r[cVal])
+      }));
+      return;
+    }
+  
+    // Legacy 3×K: columna "estado" + columnas tratamientos
+    const estadoCol = cols.find(c => String(c).toLowerCase().trim() === "estado");
+    if (!estadoCol) {
+      throw new Error('Excel Firebase: usa formato temporal (tratamiento, estado, tiempo, valor) o legacy 3×K con columna "estado".');
+    }
+  
+    const names = cols.filter(c => c !== estadoCol);
+    const map = { alimentacion: [], excitacion: [], inmovil: [] };
+  
+    for (const r of rows){
+      const estado = normalizeEstado(r[estadoCol]);
+      const vals = names.map(n => safeInt(r[n]));
+      if (map[estado]) map[estado] = vals;
+    }
+  
+    if (!map.alimentacion.length || !map.excitacion.length || !map.inmovil.length){
+      throw new Error("Legacy 3×K: faltan filas alimentación/excitación/inmovil.");
+    }
+  
+    setTemporalDataFrom3xK(names, map.alimentacion, map.excitacion, map.inmovil);
+  }
+
 
   // =========================
   // Ejecutar análisis (fuente única: temporalData)
@@ -2474,5 +2616,3 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
- 
-
