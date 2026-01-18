@@ -1182,7 +1182,142 @@
   let behavChart = null;  // behavChart (100% apilado 3 estados, sumas temporales)
   let areaChartGlobal = null; // promedio global
   let areaCharts = [];    // por tratamiento
+  //=========================
 
+  // =========================
+  // Bubble charts (por tratamiento)
+  // X = tiempo, Y = estado, tamaño = valor
+  // =========================
+  let bubbleCharts = [];
+  
+  function destroyBubbleCharts(){
+    bubbleCharts.forEach(ch => { try { ch.destroy(); } catch(e){} });
+    bubbleCharts = [];
+    const wrap = document.getElementById("bubbleChartsWrap");
+    if (wrap) wrap.innerHTML = "";
+  }
+  
+  function drawBubbleChartsByTreatment(data){
+    const wrap = document.getElementById("bubbleChartsWrap");
+    if (!wrap) return;
+  
+    destroyBubbleCharts();
+  
+    const clean = (data || [])
+      .filter(r => r && String(r.tratamiento || "").trim() !== "")
+      .map(r => ({
+        tratamiento: String(r.tratamiento).trim(),
+        estado: normalizeEstado(r.estado),
+        tiempo: Number(r.tiempo),
+        valor: safeInt(r.valor)
+      }))
+      .filter(r =>
+        Number.isFinite(r.tiempo) &&
+        ["alimentacion","excitacion","inmovil"].includes(r.estado) &&
+        r.valor > 0
+      );
+  
+    if (!clean.length){
+      wrap.innerHTML = `<div class="small-muted">No hay datos válidos para burbujas.</div>`;
+      return;
+    }
+  
+    const yMap = { alimentacion: 3, excitacion: 2, inmovil: 1 };
+    const yLabels = { 3: "Alimentación", 2: "Excitación", 1: "Inmóvil" };
+  
+    const treatments = [...new Set(clean.map(r => r.tratamiento))].sort((a,b)=>a.localeCompare(b));
+  
+    treatments.forEach((trt, idx) => {
+      const rows = clean.filter(r => r.tratamiento === trt);
+  
+      // Escala de tamaño (por tratamiento) para que no exploten
+      const maxV = Math.max(1, ...rows.map(r => r.valor));
+      const sizeScale = (v) => {
+        // radio en px: sqrt para suavizar
+        const r = 3 + 18 * Math.sqrt(v / maxV);
+        return Math.max(3, Math.min(22, r));
+      };
+  
+      // datasets por estado (así se ve separado en leyenda)
+      const mkDataset = (estadoKey, label) => {
+        const pts = rows
+          .filter(r => r.estado === estadoKey)
+          .map(r => ({ x: r.tiempo, y: yMap[estadoKey], r: sizeScale(r.valor), _v: r.valor }));
+  
+        return {
+          label,
+          data: pts
+        };
+      };
+  
+      const ds = [
+        mkDataset("alimentacion", "Alimentación"),
+        mkDataset("excitacion", "Excitación"),
+        mkDataset("inmovil", "Inmóvil")
+      ].filter(d => d.data.length);
+  
+      const card = document.createElement("div");
+      card.className = "chart-wrap";
+      card.style.height = "320px";
+      card.innerHTML = `<canvas id="bubble_${idx}"></canvas>`;
+      wrap.appendChild(card);
+  
+      const canvas = document.getElementById(`bubble_${idx}`);
+  
+      const ch = new Chart(canvas, {
+        type: "bubble",
+        data: { datasets: ds },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          parsing: false,
+          plugins: {
+            title: {
+              display: true,
+              text: `Burbujas (Tiempo vs Estado) — ${trt}`,
+              color: "#111827",
+              font: { size: 14, weight: "bold" }
+            },
+            legend: { labels: { color: "#111827" } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const p = ctx.raw || {};
+                  const estadoTxt = yLabels[p.y] || "Estado";
+                  const v = Number.isFinite(p._v) ? p._v : "";
+                  return ` ${estadoTxt} | tiempo=${p.x} | valor=${v}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: "linear",
+              title: { display: true, text: "Tiempo", color: "#111827" },
+              ticks: { color: "#111827" },
+              grid: { color: "#e5e7eb" }
+            },
+            y: {
+              min: 0.5,
+              max: 3.5,
+              ticks: {
+                stepSize: 1,
+                color: "#111827",
+                callback: (v) => yLabels[v] || ""
+              },
+              title: { display: true, text: "Estado", color: "#111827" },
+              grid: { color: "#e5e7eb" }
+            }
+          }
+        }
+      });
+  
+      bubbleCharts.push(ch);
+    });
+  }
+
+  
+  //=========================
   function drawChart(summaryRows, fisherLine){
     const labels = summaryRows.map(r => r.tratamiento);
     const data = summaryRows.map(r => r.prop_alim);
