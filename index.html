@@ -440,7 +440,51 @@
             </div>
           </div>
         </div><!-- /pane-manual -->
+        <!-- ===================== -->
+        <!-- PANE: BURBUJAS -->
+        <!-- ===================== -->
 
+        <div class="tab-pane fade" id="pane-burbujas" role="tabpanel" aria-labelledby="tab-burbujas">
+          <div class="row g-3 mt-3">
+        
+            <div class="col-12">
+              <div class="card p-4">
+                <h2 class="h6 mb-1">🫧 Mapa de burbujas (3×3)</h2>
+                <div class="small-muted">
+                  Filas = <b>estado</b> (Alimentación / Excitación / Inmóvil). Columnas = <b>medida</b>:
+                  (1) Valor por tiempo, (2) Acumulado, (3) % por tiempo.
+                  <br/>Eje X: <code>tiempo</code> • Eje Y: <code>tratamiento</code> • Tamaño: <code>valor</code> escalado.
+                </div>
+              </div>
+            </div>
+        
+            <!-- Grid 3×3 -->
+            <div class="col-12">
+              <div class="row g-3" id="bubbleGridWrap">
+        
+                <!-- 9 charts -->
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_0"></canvas></div></div>
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_1"></canvas></div></div>
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_2"></canvas></div></div>
+        
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_3"></canvas></div></div>
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_4"></canvas></div></div>
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_5"></canvas></div></div>
+        
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_6"></canvas></div></div>
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_7"></canvas></div></div>
+                <div class="col-12 col-md-4"><div class="chart-wrap" style="height:280px;"><canvas id="bubble_8"></canvas></div></div>
+        
+              </div>
+            </div>
+        
+          </div>
+        </div>
+
+        <!-- ===================== -->
+        <!-- PANE: archivos -->
+        <!-- ===================== -->
+        
         <div class="tab-pane fade" id="pane-archivos" role="tabpanel" aria-labelledby="tab-archivos">
           <div class="card p-4 mt-3">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -464,6 +508,9 @@
             <!-- input oculto para reemplazar -->
             <input class="d-none" type="file" id="replaceFileInput" accept=".xlsx,.xls,.csv" />
           </div>
+          
+
+          
         </div>
 
 
@@ -1167,6 +1214,231 @@
   let areaChartGlobal = null; // promedio global
   let areaCharts = [];    // por tratamiento
 
+  // =========================
+  // 🫧 Bubble charts 3×3
+  // - Filas: estado (A/E/I)
+  // - Columnas: medida (por tiempo / acumulado / % por tiempo)
+  // =========================
+  let bubbleCharts = []; // 9 instancias
+  
+  function destroyBubbleCharts(){
+    bubbleCharts.forEach(ch => { try{ ch.destroy(); }catch(e){} });
+    bubbleCharts = [];
+  }
+  
+  function stateLabel(st){
+    if (st === "alimentacion") return "Alimentación";
+    if (st === "excitacion")   return "Excitación";
+    if (st === "inmovil")      return "Inmóvil";
+    return st;
+  }
+  
+  function measureLabel(k){
+    if (k === "perTime") return "Valor por tiempo";
+    if (k === "cumulative") return "Acumulado";
+    if (k === "percent") return "% por tiempo";
+    return k;
+  }
+  
+  function buildBubbleCube(data){
+    // devuelve:
+    // { treatments[], times[], cube: {estado: {perTime:[], cumulative:[], percent:[]}} }
+    // donde cada matriz es [tIndex][trIndex] = value
+    const treatments = [...new Set((data||[]).map(r => String(r.tratamiento||"").trim()).filter(Boolean))];
+    const times = [...new Set((data||[]).map(r => Number(r.tiempo)).filter(t=>Number.isFinite(t)))].sort((a,b)=>a-b);
+  
+    const trIndex = new Map(treatments.map((t,i)=>[t,i]));
+    const tIndex  = new Map(times.map((t,i)=>[t,i]));
+  
+    const estados = ["alimentacion","excitacion","inmovil"];
+  
+    // matrices base por estado (por tiempo)
+    const perTime = {};
+    const totalsAllStates = Array.from({length: times.length}, ()=> Array(treatments.length).fill(0));
+  
+    for (const st of estados){
+      perTime[st] = Array.from({length: times.length}, ()=> Array(treatments.length).fill(0));
+    }
+  
+    for (const r of (data || [])){
+      const tr = String(r.tratamiento || "").trim();
+      const tt = Number(r.tiempo);
+      const st = normalizeEstado(r.estado);
+      const v  = safeInt(r.valor);
+  
+      if (!trIndex.has(tr) || !tIndex.has(tt)) continue;
+      if (!estados.includes(st)) continue;
+  
+      const j = trIndex.get(tr);
+      const i = tIndex.get(tt);
+  
+      perTime[st][i][j] += v;
+      totalsAllStates[i][j] += v;
+    }
+  
+    // acumulado por estado
+    const cumulative = {};
+    for (const st of estados){
+      cumulative[st] = Array.from({length: times.length}, ()=> Array(treatments.length).fill(0));
+      const running = Array(treatments.length).fill(0);
+      for (let i=0; i<times.length; i++){
+        for (let j=0; j<treatments.length; j++){
+          running[j] += perTime[st][i][j];
+          cumulative[st][i][j] = running[j];
+        }
+      }
+    }
+  
+    // % por tiempo dentro del total (A+E+I) en ese mismo (tiempo, tratamiento)
+    const percent = {};
+    for (const st of estados){
+      percent[st] = Array.from({length: times.length}, ()=> Array(treatments.length).fill(0));
+      for (let i=0; i<times.length; i++){
+        for (let j=0; j<treatments.length; j++){
+          const tot = totalsAllStates[i][j];
+          percent[st][i][j] = tot > 0 ? (perTime[st][i][j] / tot) : 0;
+        }
+      }
+    }
+  
+    return {
+      treatments,
+      times,
+      cube: {
+        alimentacion: { perTime: perTime.alimentacion, cumulative: cumulative.alimentacion, percent: percent.alimentacion },
+        excitacion:   { perTime: perTime.excitacion,   cumulative: cumulative.excitacion,   percent: percent.excitacion   },
+        inmovil:      { perTime: perTime.inmovil,      cumulative: cumulative.inmovil,      percent: percent.inmovil      },
+      }
+    };
+  }
+  
+  function pointsFromMatrix(times, treatments, matrix, rMax=14, rMin=3){
+    // matrix: [tIndex][trIndex] value
+    // produce points with y as category (treatment string)
+    let vmax = 0;
+    for (let i=0; i<matrix.length; i++){
+      for (let j=0; j<matrix[i].length; j++){
+        vmax = Math.max(vmax, Number(matrix[i][j]) || 0);
+      }
+    }
+    if (vmax <= 0) vmax = 1;
+  
+    const pts = [];
+    for (let i=0; i<times.length; i++){
+      for (let j=0; j<treatments.length; j++){
+        const v = Number(matrix[i][j]) || 0;
+        if (v <= 0) continue;
+  
+        const r = rMin + (rMax - rMin) * (v / vmax);
+  
+        pts.push({
+          x: times[i],
+          y: treatments[j],
+          r: r,
+          _v: v
+        });
+      }
+    }
+    return pts;
+  }
+  
+  function drawBubble3x3(filteredData){
+    // 9 charts:
+    // row0: alimentacion (perTime/cumulative/percent)
+    // row1: excitacion
+    // row2: inmovil
+    const cube = buildBubbleCube(filteredData);
+  
+    destroyBubbleCharts();
+  
+    if (!cube.times.length || !cube.treatments.length){
+      // si no hay data, limpia canvases
+      for (let k=0;k<9;k++){
+        const cv = document.getElementById(`bubble_${k}`);
+        if (cv){
+          const ctx = cv.getContext("2d");
+          ctx.clearRect(0,0,cv.width,cv.height);
+        }
+      }
+      return;
+    }
+  
+    const estados = ["alimentacion","excitacion","inmovil"];
+    const measures = ["perTime","cumulative","percent"];
+  
+    // Para %: vmax=1 pero igual escalamos a su propio máximo (mejor contraste)
+    let idx = 0;
+    for (const st of estados){
+      for (const ms of measures){
+        const canvas = document.getElementById(`bubble_${idx}`);
+        idx++;
+        if (!canvas) continue;
+  
+        const matrix = cube.cube[st][ms];
+        const pts = pointsFromMatrix(cube.times, cube.treatments, matrix);
+  
+        const title = `${stateLabel(st)} — ${measureLabel(ms)}`;
+  
+        const ch = new Chart(canvas, {
+          type: "bubble",
+          data: {
+            datasets: [{
+              label: title,
+              data: pts,
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            parsing: false,
+            plugins: {
+              title: {
+                display: true,
+                text: title,
+                color: "#111827",
+                font: { size: 13, weight: "bold" }
+              },
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    const raw = ctx.raw || {};
+                    const v = raw._v ?? 0;
+                    if (ms === "percent") return ` ${raw.y} | t=${raw.x} | ${(v*100).toFixed(1)}%`;
+                    return ` ${raw.y} | t=${raw.x} | v=${v}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                type: "linear",
+                title: { display: true, text: "Tiempo", color: "#111827" },
+                ticks: { color: "#111827" },
+                grid: { color: "#e5e7eb" }
+              },
+              y: {
+                type: "category",
+                labels: cube.treatments,
+                title: { display: true, text: "Tratamiento", color: "#111827" },
+                ticks: { color: "#111827" },
+                grid: { color: "#f1f5f9" }
+              }
+            }
+          }
+        });
+  
+        bubbleCharts.push(ch);
+      }
+    }
+  }
+
+
+
+
+  //===========================
+  //==========================
   function drawChart(summaryRows, fisherLine){
     const labels = summaryRows.map(r => r.tratamiento);
     const data = summaryRows.map(r => r.prop_alim);
@@ -2036,6 +2308,13 @@
       //const {names, raw3} = build3xKFromTemporal(temporalData);
       // ✅ aplica filtro de tiempo
       const filteredData = applyTimeFilter(temporalData);
+
+      // ✅ Burbujas 3×3 (tratamiento vs tiempo, tamaño=valor)
+      drawBubble3x3(filteredData);
+      
+      // 1) 3×K derivado (filtrado)
+      const { names, raw3 } = build3xKFromTemporal(filteredData);
+
       
       // 1) 3×K derivado (filtrado)
       const {names, raw3} = build3xKFromTemporal(filteredData);
