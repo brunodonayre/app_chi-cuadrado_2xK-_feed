@@ -1185,8 +1185,8 @@
   //=========================
 
   // =========================
-  // Bubble charts (por tratamiento)
-  // X = tiempo, Y = estado, tamaño = valor
+  // Bubble charts (por tratamiento) - CATEGÓRICO
+  // X = tiempo (categoría), Y = estado (categoría), tamaño = valor
   // =========================
   let bubbleCharts = [];
   
@@ -1208,11 +1208,11 @@
       .map(r => ({
         tratamiento: String(r.tratamiento).trim(),
         estado: normalizeEstado(r.estado),
-        tiempo: Number(r.tiempo),
+        tiempo: String(Number(r.tiempo)),   // 👈 lo volvemos etiqueta (category)
         valor: safeInt(r.valor)
       }))
       .filter(r =>
-        Number.isFinite(r.tiempo) &&
+        r.tiempo !== "NaN" &&
         ["alimentacion","excitacion","inmovil"].includes(r.estado) &&
         r.valor > 0
       );
@@ -1222,32 +1222,45 @@
       return;
     }
   
-    const yMap = { alimentacion: 3, excitacion: 2, inmovil: 1 };
-    const yLabels = { 3: "Alimentación", 2: "Excitación", 1: "Inmóvil" };
+    // ✅ categorías X (tiempos) ordenadas numéricamente
+    const times = [...new Set(clean.map(r => r.tiempo))]
+      .map(t => Number(t))
+      .filter(t => Number.isFinite(t))
+      .sort((a,b)=>a-b)
+      .map(t => String(t));
   
-    const treatments = [...new Set(clean.map(r => r.tratamiento))].sort((a,b)=>a.localeCompare(b));
+    // ✅ categorías Y (estados)
+    const yCats = ["Inmóvil", "Excitación", "Alimentación"];
+    const yLabelFromKey = (k) => (
+      k === "alimentacion" ? "Alimentación" :
+      k === "excitacion"   ? "Excitación"   :
+      "Inmóvil"
+    );
+  
+    const treatments = [...new Set(clean.map(r => r.tratamiento))]
+      .sort((a,b)=>a.localeCompare(b));
   
     treatments.forEach((trt, idx) => {
       const rows = clean.filter(r => r.tratamiento === trt);
   
-      // Escala de tamaño (por tratamiento) para que no exploten
+      // Escala de tamaño por tratamiento (suave)
       const maxV = Math.max(1, ...rows.map(r => r.valor));
       const sizeScale = (v) => {
-        // radio en px: sqrt para suavizar
         const r = 3 + 18 * Math.sqrt(v / maxV);
         return Math.max(3, Math.min(22, r));
       };
   
-      // datasets por estado (así se ve separado en leyenda)
+      // Dataset por estado (para leyenda separada)
       const mkDataset = (estadoKey, label) => {
         const pts = rows
           .filter(r => r.estado === estadoKey)
-          .map(r => ({ x: r.tiempo, y: yMap[estadoKey], r: sizeScale(r.valor), _v: r.valor }));
-  
-        return {
-          label,
-          data: pts
-        };
+          .map(r => ({
+            x: r.tiempo,                      // 👈 category label
+            y: yLabelFromKey(estadoKey),      // 👈 category label
+            r: sizeScale(r.valor),
+            _v: r.valor
+          }));
+        return { label, data: pts };
       };
   
       const ds = [
@@ -1283,29 +1296,25 @@
               callbacks: {
                 label: (ctx) => {
                   const p = ctx.raw || {};
-                  const estadoTxt = yLabels[p.y] || "Estado";
                   const v = Number.isFinite(p._v) ? p._v : "";
-                  return ` ${estadoTxt} | tiempo=${p.x} | valor=${v}`;
+                  return ` ${ctx.dataset.label} | tiempo=${p.x} | valor=${v}`;
                 }
               }
             }
           },
           scales: {
             x: {
-              type: "linear",
-              title: { display: true, text: "Tiempo", color: "#111827" },
+              type: "category",
+              labels: times,
+              title: { display: true, text: "Tiempo (categoría)", color: "#111827" },
               ticks: { color: "#111827" },
               grid: { color: "#e5e7eb" }
             },
             y: {
-              min: 0.5,
-              max: 3.5,
-              ticks: {
-                stepSize: 1,
-                color: "#111827",
-                callback: (v) => yLabels[v] || ""
-              },
+              type: "category",
+              labels: yCats,
               title: { display: true, text: "Estado", color: "#111827" },
+              ticks: { color: "#111827" },
               grid: { color: "#e5e7eb" }
             }
           }
@@ -2241,6 +2250,9 @@
       const seriesByTrt = buildSeriesFromTemporal(filteredData);
       drawAreaChartsPercentByTreatment(seriesByTrt);
       drawAreaChartGlobal(seriesByTrt);
+
+      drawBubbleChartsByTreatment(filteredData);
+
 
       // =======================================================
       // 🔹 Gráfico final: mapa temporal (barras recostadas + Fisher)
