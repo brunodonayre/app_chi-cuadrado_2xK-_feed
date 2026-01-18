@@ -1253,7 +1253,7 @@
       const mkDataset = (estadoKey, label) => {
         const pts = rows
           .filter(r => r.estado === estadoKey)
-          .map(r => ({ x: r.tiempo, y: yMap[estadoKey], r: sizeScale(r.valor), _v: r.valor }));
+          .map(r => ({ x: String(r.tiempo),y: label, r: sizeScale(r.valor), _v: r.valor }));
   
         return {
           label,
@@ -1327,15 +1327,20 @@
               grid: { color: "#e5e7eb" }
             },
             y: {
-              min: 0.5,
-              max: 3.5,
-              ticks: {
-                stepSize: 1,
-                color: "#111827",
-                callback: (v) => yLabels[v] || ""
+              type: "category",
+              labels: ["Inmóvil", "Excitación", "Alimentación"],
+              offset: true,
+              title: {
+                display: true,
+                text: "Estado",
+                color: "#111827"
               },
-              title: { display: true, text: "Estado", color: "#111827" },
-              grid: { color: "#e5e7eb" }
+              ticks: {
+                color: "#111827"
+              },
+              grid: {
+                borderDash: [6, 6]   // 👈 líneas punteadas como tu ejemplo
+              }
             }
           }
         }
@@ -1839,6 +1844,13 @@
     const immob = [];
 
     treatments.forEach(trt => {
+
+      // ✅ X categórico en orden (por tiempo)
+      const xLabels = [...new Set(rows.map(r => r.tiempo))]
+        .filter(v => Number.isFinite(v))
+        .sort((a,b) => a - b)
+        .map(v => String(v));
+
       const rows = temporalData.filter(d => String(d.tratamiento || '').trim() === trt);
       feed.push(sum(rows.filter(d => normalizeEstado(d.estado) === 'alimentacion').map(d => safeInt(d.valor))));
       excit.push(sum(rows.filter(d => normalizeEstado(d.estado) === 'excitacion').map(d => safeInt(d.valor))));
