@@ -1216,6 +1216,12 @@
         ["alimentacion","excitacion","inmovil"].includes(r.estado) &&
         r.valor > 0
       );
+
+    // ✅ AQUÍ MISMO va el máximo GLOBAL
+    const globalMaxV = Math.max(
+      1,
+      ...clean.map(r => Number(r.valor)).filter(Number.isFinite)
+    );
   
     if (!clean.length){
       wrap.innerHTML = `<div class="small-muted">No hay datos válidos para burbujas.</div>`;
@@ -1265,7 +1271,7 @@
             return {
               x: String(r.tiempo),                 // categórico
               y: yLabelFromKey(estadoKey),         // categórico
-              r: sizeScale(v),                     // ✅ tamaño real
+              r: sizeScaleGlobal(v),                     // ✅ tamaño real
               _v: v                                // ✅ número para datalabels/tooltip
             };
           });
