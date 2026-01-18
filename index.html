@@ -1227,6 +1227,14 @@
      // ✅ ESCALA GLOBAL (solo burbujas)
     const globalVals = clean.map(r => Number(r.valor)).filter(Number.isFinite);
     const globalMaxV = Math.max(1, ...globalVals);
+
+    const sizeScaleGlobal = (v) => {
+      const minR = 6;
+      const maxR = 38;
+      const p = 1.0;
+      const t = Math.max(0, Math.min(1, Number(v) / globalMaxV));
+      return minR + Math.pow(t, p) * (maxR - minR);
+    };
   
     // ✅ categorías X (tiempos) ordenadas numéricamente
     const times = [...new Set(clean.map(r => r.tiempo))]
