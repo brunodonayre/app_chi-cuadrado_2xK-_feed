@@ -14,11 +14,6 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <!-- Nuevo Nuevo Burbujas -->
-  <!-- DataLabels plugin (texto dentro de burbujas) -->
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-
-
   <!-- SheetJS para leer Excel .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -546,12 +541,6 @@
 
 
 <script>
-  // Nuevo Nuevo burbujas//
-  // ✅ Registrar plugin para etiquetas dentro de burbujas
-  if (window.Chart && window.ChartDataLabels) {
-    Chart.register(ChartDataLabels);
-  }
-
   // =========================
   // Utilidades
   // =========================
@@ -1253,7 +1242,7 @@
       const mkDataset = (estadoKey, label) => {
         const pts = rows
           .filter(r => r.estado === estadoKey)
-          .map(r => ({ x: String(r.tiempo),y: label, r: sizeScale(r.valor), _v: r.valor }));
+          .map(r => ({ x: r.tiempo, y: yMap[estadoKey], r: sizeScale(r.valor), _v: r.valor }));
   
         return {
           label,
@@ -1299,52 +1288,29 @@
                   return ` ${estadoTxt} | tiempo=${p.x} | valor=${v}`;
                 }
               }
-            },
-
-            // ✅ VALORES DENTRO DE LAS BURBUJAS
-            datalabels: {
-              formatter: (value, ctx) => {
-                // value es {x,y,r,_v}
-                const v = value?._v;
-                if (!Number.isFinite(v)) return "";
-                // evita texto en burbujas muy pequeñas
-                if ((value?.r ?? 0) < 8) return "";
-                return String(v);
-              },
-              color: "#111827",
-              font: { size: 11, weight: "bold" },
-              align: "center",
-              anchor: "center",
-              clamp: true
             }
           },
-              
           scales: {
             x: {
-              type: "category",
+              type: "linear",
               title: { display: true, text: "Tiempo", color: "#111827" },
               ticks: { color: "#111827" },
               grid: { color: "#e5e7eb" }
             },
             y: {
-              type: "category",
-              labels: ["Inmóvil", "Excitación", "Alimentación"],
-              offset: true,
-              title: {
-                display: true,
-                text: "Estado",
-                color: "#111827"
-              },
+              min: 0.5,
+              max: 3.5,
               ticks: {
-                color: "#111827"
+                stepSize: 1,
+                color: "#111827",
+                callback: (v) => yLabels[v] || ""
               },
-              grid: {
-                borderDash: [6, 6]   // 👈 líneas punteadas como tu ejemplo
-              }
+              title: { display: true, text: "Estado", color: "#111827" },
+              grid: { color: "#e5e7eb" }
             }
           }
         }
-    });
+      });
   
       bubbleCharts.push(ch);
     });
@@ -1837,27 +1803,21 @@
   // 3×K derivado desde temporalData
   // =========================
   function build3xKFromTemporal(temporalData){
-    const treatments = [...new Set(
-      (temporalData || [])
-        .map(d => String(d.tratamiento || '').trim())
-        .filter(Boolean)
-    )].sort((a,b)=>a.localeCompare(b));
-  
+    const treatments = [...new Set(temporalData.map(d => String(d.tratamiento || '').trim()).filter(Boolean))];
+
     const feed  = [];
     const excit = [];
     const immob = [];
-  
+
     treatments.forEach(trt => {
-      const rowsTrt = (temporalData || []).filter(d => String(d.tratamiento || '').trim() === trt);
-  
-      feed.push(sum(rowsTrt.filter(d => normalizeEstado(d.estado) === 'alimentacion').map(d => safeInt(d.valor))));
-      excit.push(sum(rowsTrt.filter(d => normalizeEstado(d.estado) === 'excitacion').map(d => safeInt(d.valor))));
-      immob.push(sum(rowsTrt.filter(d => normalizeEstado(d.estado) === 'inmovil').map(d => safeInt(d.valor))));
+      const rows = temporalData.filter(d => String(d.tratamiento || '').trim() === trt);
+      feed.push(sum(rows.filter(d => normalizeEstado(d.estado) === 'alimentacion').map(d => safeInt(d.valor))));
+      excit.push(sum(rows.filter(d => normalizeEstado(d.estado) === 'excitacion').map(d => safeInt(d.valor))));
+      immob.push(sum(rows.filter(d => normalizeEstado(d.estado) === 'inmovil').map(d => safeInt(d.valor))));
     });
-  
+
     return { names: treatments, raw3: { feed, excit, immob } };
   }
-
 
   // =========================
   // Downloads
@@ -2227,11 +2187,6 @@
       //const {names, raw3} = build3xKFromTemporal(temporalData);
       // ✅ aplica filtro de tiempo
       const filteredData = applyTimeFilter(temporalData);
-
-      //Nuevo agregando 
-      // ✅ Burbujas por tratamiento (tiempo vs estado, tamaño=valor)
-      drawBubbleChartsByTreatment(filteredData);
-
       
       // 1) 3×K derivado (filtrado)
       const {names, raw3} = build3xKFromTemporal(filteredData);
@@ -2314,10 +2269,6 @@
   // =========================
   function clearAll(){
     temporalData = [];
-
-    //Burbujas
-    destroyBubbleCharts();
-
 
     document.getElementById('obs3kWrap').innerHTML = '';
     document.getElementById('globalOut').innerHTML = '';
