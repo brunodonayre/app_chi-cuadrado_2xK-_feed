@@ -2221,51 +2221,7 @@
   });
   
   
-  // =====================================
-  // ✅ IMPLEMENTACIÓN COMPLETA: loadExcelFromFirebase
-  // (Te quedó truncada en tu pegado: "const url...")
-  // =====================================
-  async function loadExcelFromFirebase(storagePath){
-    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
-    if (!window._fb) throw new Error("Firebase no está listo.");
-  
-    const { storage, ref, getDownloadURL } = window._fb;
-  
-    // 1) URL firmada del archivo
-    const url = await getDownloadURL(ref(storage, storagePath));
-  
-    // 2) Descarga binaria
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`No pude descargar el Excel (${resp.status})`);
-    const buf = await resp.arrayBuffer();
-  
-    // 3) Leer como XLSX
-    const wb = XLSX.read(buf, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-  
-    if (!rows.length) throw new Error("El Excel está vacío (hoja 1).");
-  
-    // 4) Detectar formato temporal largo vs legacy 3×K
-    const cols = Object.keys(rows[0] || {});
-    const lowerCols = cols.map(c => String(c).toLowerCase().trim());
-  
-    const cTrat = cols[lowerCols.indexOf("tratamiento")];
-    const cEst  = cols[lowerCols.indexOf("estado")];
-    const cTime = cols[lowerCols.indexOf("tiempo")];
-    const cVal  = cols[lowerCols.indexOf("valor")];
-  
-    // Formato temporal largo
-    if (cTrat && cEst && cTime && cVal){
-      temporalData = rows.map(r => ({
-        tratamiento: String(r[cTrat]).trim(),
-        estado: normalizeEstado(r[cEst]),
-        tiempo: Number(r[cTime]),
-        valor: safeInt(r[cVal])
-      }));
-      return;
-    }
-  
+ 
     // Legacy 3×K: columna "estado" + columnas tratamientos
     const estadoCol = cols.find(c => String(c).toLowerCase().trim() === "estado");
     if (!estadoCol) {
