@@ -14,6 +14,11 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
+  <!-- Nuevo Nuevo Burbujas -->
+  <!-- DataLabels plugin (texto dentro de burbujas) -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+
   <!-- SheetJS para leer Excel .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -541,6 +546,12 @@
 
 
 <script>
+  // Nuevo Nuevo burbujas//
+  // ✅ Registrar plugin para etiquetas dentro de burbujas
+  if (window.Chart && window.ChartDataLabels) {
+    Chart.register(ChartDataLabels);
+  }
+
   // =========================
   // Utilidades
   // =========================
@@ -1288,8 +1299,26 @@
                   return ` ${estadoTxt} | tiempo=${p.x} | valor=${v}`;
                 }
               }
+            },
+
+            // ✅ VALORES DENTRO DE LAS BURBUJAS
+            datalabels: {
+              formatter: (value, ctx) => {
+                // value es {x,y,r,_v}
+                const v = value?._v;
+                if (!Number.isFinite(v)) return "";
+                // evita texto en burbujas muy pequeñas
+                if ((value?.r ?? 0) < 8) return "";
+                return String(v);
+              },
+              color: "#111827",
+              font: { size: 11, weight: "bold" },
+              align: "center",
+              anchor: "center",
+              clamp: true
             }
           },
+              
           scales: {
             x: {
               type: "linear",
@@ -1310,7 +1339,7 @@
             }
           }
         }
-      });
+    });
   
       bubbleCharts.push(ch);
     });
