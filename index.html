@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>App 2×K: Alimentación vs No-alimentación (desde serie temporal)</title>
 
-  <!-- Bootstrap (UI + tabs) -->
+  <!-- Bootstrap (solo UI) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <!-- jStat -->
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
@@ -20,7 +19,7 @@
 
   <style>
     body { background: #0b1220; }
-    .card { border: 0; border-radius: 16px; background: #0f172a; color: #e5e7eb; }
+    .card { border: 0; border-radius: 16px; }
     .form-control, .form-select { background: #0b1220; color: #e5e7eb; border-color: #243146; }
     .form-control:focus, .form-select:focus { box-shadow: none; border-color: #3b82f6; }
     .btn-primary { border-radius: 12px; }
@@ -32,6 +31,7 @@
     .pill-bad { background:#7f1d1d; color:#fecaca; }
 
     /* Cards siguen oscuras, tablas en blanco */
+    .card { background: #0f172a; color: #e5e7eb; }
     .table { background: #ffffff; color: #000000; }
 
     /* Encabezados tablas */
@@ -53,6 +53,8 @@
     .table tbody tr:nth-child(even) th{
       background: #f6f8fa;
     }
+
+    .table thead tr { background: #001A72; }
 
     .table { border-collapse: separate; border-spacing: 0; }
 
@@ -123,12 +125,13 @@
               comparaciones por pares (Fisher 2×2), matriz p-values y potencia estimada.
             </div>
           </div>
-          <div class="d-flex flex-wrap gap-2 align-items-center">
+          <div class="d-flex gap-2">
             <button class="btn btn-outline-light" id="btnExample">Cargar ejemplo</button>
             <button class="btn btn-outline-light" id="btnClear">Limpiar</button>
             <button class="btn btn-outline-light" id="btnLogin">Iniciar sesión</button>
             <button class="btn btn-outline-danger d-none" id="btnLogout">Salir</button>
             <span class="small-muted" id="authInfo"></span>
+
           </div>
         </div>
       </div>
@@ -156,6 +159,7 @@
             📂 Archivos
           </button>
         </li>
+
       </ul>
     </div>
 
@@ -195,7 +199,7 @@
                       <div class="col-md-5">
                         <label class="form-label">Excels guardados</label>
                         <select class="form-select" id="fbFileSelect">
-                          <option value="">(Inicia sesión para cargar)</option>
+                          <option value="">(Cargando…)</option>
                         </select>
                       </div>
                     </div>
@@ -209,6 +213,7 @@
                 </div>
 
                 <div class="row g-3 mt-3">
+                  <!-- nSim / seed / alpha / btnRun -->
                   <div class="col-md-3">
                     <label class="form-label">Simulaciones Fisher MC</label>
                     <input class="form-control" id="nSim" type="number" min="1000" step="1000" value="100000" />
@@ -240,13 +245,13 @@
                     </select>
                     <div class="small-muted">Filtra la serie temporal antes de construir la tabla 3×K/2×K.</div>
                   </div>
-
+                
                   <div class="col-md-4" id="timeSingleWrap" style="display:none;">
                     <label class="form-label">Tiempo</label>
                     <select class="form-select" id="timeSingle"></select>
                     <div class="small-muted">Se cargan automáticamente los tiempos disponibles.</div>
                   </div>
-
+                
                   <div class="col-md-4" id="timeRangeWrap" style="display:none;">
                     <label class="form-label">Rango</label>
                     <div class="d-flex gap-2">
@@ -256,11 +261,13 @@
                     <div class="small-muted">Incluye extremos: [desde, hasta].</div>
                   </div>
                 </div>
+                <!-- Filtro de tiempo para tabla comparativa -->
 
                 <div class="small-muted mt-3">
                   Nota: la tabla 3×K se calcula como suma temporal, y el análisis global se hace sobre 2×K:
                   <b>No_alimentación = Excitación + Inmóvil</b>.
                 </div>
+
               </div>
             </div>
 
@@ -308,9 +315,22 @@
                   </div>
                 </div>
 
-                <div class="d-flex flex-wrap gap-2 mt-3">
+                <!---nuevo gráfico 
+                <div class="mt-4">
+                  <div class="small-muted mb-2">Mapa temporal (Alimentación %) — barras recostadas por tratamiento y tiempo + significancia</div>
+                  <div class="chart-wrap" style="height: 520px;">
+                    <canvas id="timelineGrid"></canvas>
+                  </div>
+                  <div class="small-muted mt-2">
+                    * Comparaciones por tiempo: Fisher 2×2 (Alimentación vs No-alimentación) con ajuste Holm dentro de cada tiempo.
+                  </div>
+                </div>
+
+                nuevo gráfico -->
+
+
+                <div class="d-flex gap-2 mt-3">
                   <button class="btn btn-outline-light" id="btnDownloadCSV">Descargar resumen CSV</button>
-                  <button class="btn btn-outline-light" id="btnBubbles">Ver burbujas (tiempo×estado)</button>
                 </div>
               </div>
             </div>
@@ -327,6 +347,7 @@
                 </div>
               </div>
             </div>
+
 
             <div class="col-12">
               <div class="card p-4">
@@ -401,11 +422,8 @@
               <b>p_fisher &lt; α</b> y <b>p_holm &lt; α</b> (dos columnas).
             </div>
           </div>
-        </div>
+        </div><!-- /pane-manual -->
 
-        <!-- ===================== -->
-        <!-- PANE: ARCHIVOS (Firebase) -->
-        <!-- ===================== -->
         <div class="tab-pane fade" id="pane-archivos" role="tabpanel" aria-labelledby="tab-archivos">
           <div class="card p-4 mt-3">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -431,13 +449,13 @@
           </div>
         </div>
 
+
       </div><!-- /tab-content -->
     </div><!-- /col-12 tab-content wrapper -->
 
   </div><!-- /row g-3 -->
 </div><!-- /container -->
 
-<!-- Firebase (ESM) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 
@@ -451,6 +469,7 @@
     getStorage,
     ref, uploadBytes, getDownloadURL, deleteObject, getBytes
   } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+
 
   import {
     getAuth,
@@ -484,6 +503,9 @@
     auth, provider, signInWithPopup, signOut, onAuthStateChanged
   };
 </script>
+
+
+
 
 <script>
   // =========================
@@ -520,7 +542,7 @@
     }
     return Array.from(set).sort((a,b)=>a-b);
   }
-
+  
   function updateTimeControls(){
     const mode = document.getElementById("timeMode")?.value || "all";
     const singleWrap = document.getElementById("timeSingleWrap");
@@ -528,12 +550,13 @@
     const selSingle  = document.getElementById("timeSingle");
     const fromInp    = document.getElementById("timeFrom");
     const toInp      = document.getElementById("timeTo");
-
+  
     if (singleWrap) singleWrap.style.display = (mode === "single") ? "" : "none";
     if (rangeWrap)  rangeWrap.style.display  = (mode === "range")  ? "" : "none";
-
+  
     const times = getAvailableTimes(temporalData);
-
+  
+    // Poblar select de tiempo único
     if (selSingle){
       const prev = selSingle.value;
       selSingle.innerHTML = "";
@@ -549,32 +572,36 @@
           opt.textContent = String(t);
           selSingle.appendChild(opt);
         }
+        // Mantener selección si existe, si no usa el primero
         selSingle.value = times.includes(Number(prev)) ? prev : String(times[0]);
       }
     }
-
+  
+    // Setear valores por defecto para rango
     if (fromInp && toInp){
       const minT = times.length ? times[0] : 0;
       const maxT = times.length ? times[times.length-1] : 0;
+  
       if (!fromInp.value) fromInp.value = String(minT);
       if (!toInp.value)   toInp.value   = String(maxT);
     }
   }
-
+  
   function applyTimeFilter(data){
     const mode = document.getElementById("timeMode")?.value || "all";
     if (mode === "all") return data;
-
+  
     if (mode === "single"){
       const tSel = Number(document.getElementById("timeSingle")?.value);
       if (!Number.isFinite(tSel)) return data;
       return (data || []).filter(r => Number(r.tiempo) === tSel);
     }
-
+  
     if (mode === "range"){
       const tFrom = Number(document.getElementById("timeFrom")?.value);
       const tTo   = Number(document.getElementById("timeTo")?.value);
       if (!Number.isFinite(tFrom) || !Number.isFinite(tTo)) return data;
+  
       const lo = Math.min(tFrom, tTo);
       const hi = Math.max(tFrom, tTo);
       return (data || []).filter(r => {
@@ -582,9 +609,10 @@
         return Number.isFinite(t) && t >= lo && t <= hi;
       });
     }
-
+  
     return data;
   }
+
 
   // =========================
   // Estado normalization
@@ -599,10 +627,13 @@
   }
 
   // =========================
-  // Fuente única: serie temporal
+  // Fuente única: serie temporal (temporalData)
+  // [{tratamiento, estado, tiempo, valor}, ...]
   // =========================
   let lastUploadedFile = null;
+
   let temporalData = [];
+
   let isLoadingExcel = false;
 
   function setLoadingExcel(on){
@@ -619,6 +650,7 @@
     if (sel) sel.disabled = on || !currentUser;
     if (up)  up.disabled  = on || !currentUser;
   }
+
 
   // =========================
   // RNG + Hypergeom (para Fisher MC)
@@ -850,6 +882,7 @@
     const pHolm = holm1D(pList);
     rows.forEach((r, idx) => r.p_holm = pHolm[idx]);
 
+    // ✅ ahora: dos decisiones de significancia (p_fisher y p_holm)
     rows.forEach(r=>{
       r.sig_fisher = (r.p_fisher < alpha) ? "Sí" : "No";
       r.sig_holm   = (r.p_holm   < alpha) ? "Sí" : "No";
@@ -866,15 +899,19 @@
       pMat[j][i] = r.p_fisher;
     });
 
+    // Potencia (aprox normal, bilateral)
     const powerRows = [];
     for (let i=0;i<K;i++){
       for (let j=i+1;j<K;j++){
         const p1 = props[i], p2 = props[j];
         const n1 = totals[i], n2 = totals[j];
+
         const se = Math.sqrt((p1*(1-p1))/n1 + (p2*(1-p2))/n2);
         const zAlpha = jStat.normal.inv(1 - alpha/2, 0, 1);
+
         const delta = Math.abs(p1 - p2);
         const zEff = (se > 0) ? (delta / se) : 0;
+
         const power = 1 - jStat.normal.cdf(zAlpha - zEff, 0, 1) + jStat.normal.cdf(-zAlpha - zEff, 0, 1);
 
         powerRows.push({
@@ -1109,9 +1146,9 @@
   // Charts
   // =========================
   let chart = null;       // barChart
-  let behavChart = null;  // behavChart
-  let areaChartGlobal = null;
-  let areaCharts = [];
+  let behavChart = null;  // behavChart (100% apilado 3 estados, sumas temporales)
+  let areaChartGlobal = null; // promedio global
+  let areaCharts = [];    // por tratamiento
 
   function drawChart(summaryRows, fisherLine){
     const labels = summaryRows.map(r => r.tratamiento);
@@ -1146,108 +1183,123 @@
   }
 
   // =========================
-  // Timeline grid (Canvas)
+  // Nuevo gráfico - Timeline grid (Canvas) - barras recostadas por celda + brackets con asteriscos
   // =========================
+  let timelineGridCtx = null;
+  
   function buildTimeTreatmentTable(temporalData){
     const treatments = [...new Set(
       (temporalData || [])
         .map(d => String(d.tratamiento || '').trim())
         .filter(Boolean)
     )];
-
+  
     const times = [...new Set(
       (temporalData || [])
         .map(d => Number(d.tiempo))
         .filter(t => Number.isFinite(t))
     )].sort((a,b)=>a-b);
-
+  
     const tIndex  = new Map(times.map((t,i)=>[t,i]));
     const trIndex = new Map(treatments.map((tr,i)=>[tr,i]));
-
+  
+    // por tiempo (no acumulado)
     const feedByT = times.map(()=> Array(treatments.length).fill(0));
     const totByT  = times.map(()=> Array(treatments.length).fill(0));
-
+  
     for (const r of (temporalData || [])){
       const tr = String(r.tratamiento || '').trim();
       if (!trIndex.has(tr)) continue;
-
+  
       const tt = Number(r.tiempo);
       if (!tIndex.has(tt)) continue;
-
+  
       const st = normalizeEstado(r.estado);
       const v  = safeInt(r.valor);
+  
       if (!['alimentacion','excitacion','inmovil'].includes(st)) continue;
-
+  
       const iT = tIndex.get(tt);
       const j  = trIndex.get(tr);
-
+  
       totByT[iT][j] += v;
       if (st === 'alimentacion') feedByT[iT][j] += v;
     }
-
+  
+    // acumulado
     const feedCumByT = [];
     const totCumByT  = [];
     const propCumByT = [];
-
+  
     let runningFeed = Array(treatments.length).fill(0);
     let runningTot  = Array(treatments.length).fill(0);
-
+  
     for (let t=0; t<times.length; t++){
       for (let j=0; j<treatments.length; j++){
         runningFeed[j] += feedByT[t][j];
         runningTot[j]  += totByT[t][j];
       }
+  
       const feedRow = runningFeed.slice();
       const totRow  = runningTot.slice();
       const propRow = totRow.map((tot,j)=> (tot > 0 ? feedRow[j]/tot : 0));
-
+  
       feedCumByT.push(feedRow);
       totCumByT.push(totRow);
       propCumByT.push(propRow);
     }
-
+  
     return { times, treatments, feedCumByT, totCumByT, propCumByT };
   }
 
+
+  
   function fisherPairsForTime(treatments, feedCol, totalCol){
+    // Por un tiempo fijo (columna): compara tratamientos i<j
+    // 2x2: [feed_i, nofeed_i] vs [feed_j, nofeed_j]
     const rows = [];
     const pvals = [];
+  
     const K = treatments.length;
-
     for (let i=0;i<K;i++){
       for (let j=i+1;j<K;j++){
         const a = safeInt(feedCol[i]);
         const b = safeInt(totalCol[i] - feedCol[i]);
         const c = safeInt(feedCol[j]);
         const d = safeInt(totalCol[j] - feedCol[j]);
+  
+        // Si algún total es 0, no tiene sentido comparar
         if ((a+b) === 0 || (c+d) === 0) continue;
-
+  
         const fe = fisherExactTwoSided(a,b,c,d);
         pvals.push(fe.p);
         rows.push({i, j, p: fe.p});
       }
     }
-
+  
     const adj = holm1D(pvals);
     rows.forEach((r, idx) => r.p_holm = adj[idx]);
+  
+    // Ordena por p_holm (más significativo primero)
     rows.sort((x,y)=> x.p_holm - y.p_holm);
+  
     return rows;
   }
-
+  
   function drawTimelineGridCanvas(table, alpha=0.05, maxBracketsPerTime=2){
     const canvas = document.getElementById("timelineGrid");
     if (!canvas) return;
-
+  
     const cssW = canvas.clientWidth || 900;
     const cssH = canvas.clientHeight || 360;
     const dpr = window.devicePixelRatio || 1;
-
+  
     canvas.width  = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
-
+  
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr,0,0,dpr,0,0);
-
+  
     const { treatments, times, feedCumByT, totCumByT, propCumByT } = table || {};
     if (!treatments?.length || !times?.length){
       ctx.clearRect(0,0,cssW,cssH);
@@ -1256,40 +1308,49 @@
       ctx.fillText("No hay datos para el mapa temporal.", 12, 24);
       return;
     }
-
-    const padL = 150;
+  
+    // Layout
+    const padL = 150;  // nombres tratamientos
     const padT = 30;
     const padB = 28;
-    const padR = 30;
+    const padR = 20;
+    const sigGutter = 220;  // ✅ espacio exclusivo para llaves/asteriscos (sube a 300 si quieres)
 
-    const gridW = cssW - padL - padR;
-    const gridH = cssH - padT - padB;
-
-    const nR = treatments.length;
-    const nC = times.length;
-
+  
+    //const gridW = cssW - padL - padR;
+    //const gridH = cssH - padT - padB;
+    const gridW = padL + times.length * cellW + padR;
+    const cssW  = gridW + sigGutter; 
+  
+    const nR = treatments.length; // filas
+    const nC = times.length;      // columnas
+  
     const cellW = gridW / nC;
     const cellH = gridH / nR;
-
+  
     ctx.clearRect(0,0,cssW,cssH);
-
+  
+    // Título
     ctx.fillStyle = "#111827";
     ctx.font = "bold 14px Segoe UI";
     ctx.fillText("Mapa temporal de Alimentación (%) + significancia por tiempo (Holm)", 12, 18);
-
+  
+    // Etiquetas Y
     ctx.font = "13px Segoe UI";
     for (let i=0;i<nR;i++){
       const y = padT + i*cellH + cellH*0.65;
       ctx.fillText(treatments[i], 10, y);
     }
-
+  
+    // Etiquetas X
     ctx.font = "13px Segoe UI";
     for (let j=0;j<nC;j++){
       const x = padL + j*cellW + cellW*0.35;
       const y = padT + gridH + 20;
       ctx.fillText(String(times[j]), x, y);
     }
-
+  
+    // Grid
     ctx.strokeStyle = "#e5e7eb";
     ctx.lineWidth = 1;
     for (let j=0;j<=nC;j++){
@@ -1300,70 +1361,82 @@
       const y = padT + i*cellH;
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+gridW, y); ctx.stroke();
     }
-
+  
+    // Barras por celda
     for (let i=0;i<nR;i++){
       for (let j=0;j<nC;j++){
-        const tot = totCumByT[j][i];
+        const tot = totCumByT[j][i];     // OJO: [tiempo][tratamiento]
         if (tot <= 0) continue;
-
-        const p = propCumByT[j][i];
+  
+        const p = propCumByT[j][i];      // 0..1
+  
         const x0 = padL + j*cellW + 8;
-        const h  = Math.max(6, cellH * 0.28);
+        const h  = Math.max(6, cellH * 0.28);  
         const y0 = padT + i*cellH + (cellH - h)/2;
-
+         
         const wMax = cellW - 20;
         const w = Math.max(1, wMax * p);
-
-        ctx.fillStyle = "#f3f4f6";
+  
+        ctx.fillStyle = "#f3f4f6";      // fondo
         ctx.fillRect(x0, y0, wMax, h);
-
-        ctx.fillStyle = "#0f5b78";
+  
+        ctx.fillStyle = "#0f5b78";      // barra
         ctx.fillRect(x0, y0, w, h);
-
-        ctx.fillStyle = "#111827";
+  
+        ctx.fillStyle = "#111827";      // %
         ctx.font = "11px Segoe UI";
         ctx.fillText(`${Math.round(p*100)}%`, x0 + wMax - 34, y0 + h - 2);
       }
     }
-
+  
+    // Brackets de significancia por tiempo
     ctx.strokeStyle = "#0f5b78";
     ctx.fillStyle = "#111827";
     ctx.lineWidth = 1.5;
     ctx.font = "bold 16px Segoe UI";
-
+  
     for (let j=0;j<nC;j++){
       const feedCol  = feedCumByT[j].map(safeInt);
       const totalCol = totCumByT[j].map(safeInt);
-
+  
+      // pares con Holm dentro del tiempo
       const pairsHolm = fisherPairsForTime(treatments, feedCol, totalCol)
         .filter(r => Number.isFinite(r.p_holm) && r.p_holm < alpha)
         .slice(0, maxBracketsPerTime);
-
+  
       if (!pairsHolm.length) continue;
 
-      const xBase = padL + (j+1)*cellW - 6;
-      let offset = 0;
+      const xGridRight = padL + times.length * cellW; // borde derecho del grid
 
+      //const xBase = padL + (j+1)*cellW - 6;
+      const xBase = xGridRight + 18;   // ✅ arranca en el gutter, no dentro del grid
+      let offset = 0;
+  
       for (const pr of pairsHolm){
         const i1 = pr.i, i2 = pr.j;
         const y1 = padT + i1*cellH + cellH*0.5;
         const y2 = padT + i2*cellH + cellH*0.5;
-
+  
         const x = xBase + 8 + offset;
         const tick = 8;
-
+  
         ctx.beginPath();
         ctx.moveTo(x, y1);
         ctx.lineTo(x+tick, y1);
         ctx.lineTo(x+tick, y2);
         ctx.lineTo(x, y2);
         ctx.stroke();
-
+  
         ctx.fillText("*", x+tick+6, (y1+y2)/2 + 5);
+  
         offset += 14;
       }
     }
   }
+
+
+  //nuevo gráfico
+
 
   function drawBehaviorChartFrom3K(names, feed, excit, immob){
     const totals = names.map((_,j)=> safeInt(feed[j]) + safeInt(excit[j]) + safeInt(immob[j]));
@@ -1411,8 +1484,11 @@
     if (wrap) wrap.innerHTML = '';
   }
 
+  // ✅ Construye series temporales por tratamiento y tiempo => porcentajes (100% por tiempo)
   function buildSeriesFromTemporal(temporalData){
+    // Map: treatment -> Map(time -> {a,e,i})
     const m = new Map();
+
     for (const r of temporalData){
       if (!r || !r.tratamiento) continue;
       const trt = String(r.tratamiento).trim();
@@ -1429,6 +1505,7 @@
       tm.get(t)[st] += v;
     }
 
+    // Convert to plain object: trt -> {times:[], pA:[], pE:[], pI:[]}
     const out = {};
     for (const [trt, tm] of m.entries()){
       const times = Array.from(tm.keys()).sort((a,b)=>a-b);
@@ -1436,7 +1513,7 @@
       for (const tt of times){
         const o = tm.get(tt);
         const tot = (o.alimentacion + o.excitacion + o.inmovil);
-        if (tot <= 0) continue;
+        if (tot <= 0) continue; // ignora tiempos sin total
         pA.push({x: tt, y: o.alimentacion / tot});
         pE.push({x: tt, y: o.excitacion / tot});
         pI.push({x: tt, y: o.inmovil / tot});
@@ -1446,6 +1523,7 @@
     return out;
   }
 
+  // ✅ Áreas apiladas (100%) por tratamiento
   function drawAreaChartsPercentByTreatment(seriesByTrt){
     const wrap = document.getElementById('areaChartsWrap');
     if (!wrap) return;
@@ -1500,10 +1578,12 @@
     });
   }
 
+  // ✅ Promedio global (100%) por tiempo: promedio simple de proporciones por tratamiento en cada tiempo
   function drawAreaChartGlobal(seriesByTrt){
     const canvas = document.getElementById('areaChartGlobal');
     if (!canvas) return;
 
+    // juntar todos los tiempos
     const timeSet = new Set();
     for (const trt of Object.keys(seriesByTrt || {})){
       for (const p of seriesByTrt[trt].pA) timeSet.add(p.x);
@@ -1610,9 +1690,12 @@
   }
 
   // =========================
-  // Upload Excel/CSV (local)
+  // Upload Excel/CSV
+  // - Formato temporal (tratamiento, estado, tiempo, valor)
+  // - Legacy 3×K (estado + tratamientos) -> se convierte a temporal tiempo=0
   // =========================
   function setTemporalDataFrom3xK(names, feed, excit, immob){
+    // convierte 3×K a temporal con tiempo=0
     temporalData = [];
     names.forEach((trt, j)=>{
       temporalData.push({tratamiento: trt, estado: 'alimentacion', tiempo: 0, valor: safeInt(feed[j])});
@@ -1624,6 +1707,7 @@
   async function loadExcelFile(file){
     const ext = file.name.toLowerCase().split('.').pop();
 
+    // CSV
     if (ext === 'csv'){
       const text = await file.text();
       const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
@@ -1640,6 +1724,7 @@
       const idxTime = lower.indexOf('tiempo');
       const idxVal  = lower.indexOf('valor');
 
+      // Formato temporal largo
       if (idxTrat>=0 && idxEst>=0 && idxTime>=0 && idxVal>=0){
         temporalData = [];
         for (let i=1;i<lines.length;i++){
@@ -1654,6 +1739,7 @@
         return;
       }
 
+      // Legacy 3×K
       const names = header.slice(1);
       const map = {alimentacion: [], excitacion: [], inmovil: []};
 
@@ -1672,6 +1758,7 @@
       return;
     }
 
+    // Excel xlsx/xls
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, {type:'array'});
     const ws = wb.Sheets[wb.SheetNames[0]];
@@ -1681,6 +1768,7 @@
     const cols = Object.keys(rows[0] || {});
     const lowerCols = cols.map(c=>String(c).toLowerCase().trim());
 
+    // Temporal largo
     const cTrat = cols[lowerCols.indexOf('tratamiento')];
     const cEst  = cols[lowerCols.indexOf('estado')];
     const cTime = cols[lowerCols.indexOf('tiempo')];
@@ -1696,6 +1784,7 @@
       return;
     }
 
+    // Legacy 3×K
     const estadoCol = cols.find(c => String(c).toLowerCase().trim() === 'estado');
     if (!estadoCol) throw new Error('Excel: usa formato temporal (tratamiento, estado, tiempo, valor) o legacy 3×K con columna "estado".');
 
@@ -1716,7 +1805,8 @@
   }
 
   // =========================
-  // Ejemplo
+  // Ejemplo: serie temporal que suma EXACTO a 3×K
+  // (3 tiempos: 0, 10, 20; las sumas coinciden)
   // =========================
   function loadExample(){
     const names = [
@@ -1727,16 +1817,38 @@
     ];
 
     const totals = {
+      // [alim, excit, immob] totales (suma temporal)
       [names[0]]: [14,45,21],
       [names[1]]: [13,45,22],
       [names[2]]: [35,27,18],
       [names[3]]: [ 5,40,35],
     };
 
+    // split en 3 tiempos (0,10,20) que suma exacto
+    // (puedes cambiar estos splits; solo asegúrate que sumen)
+    const splits = {
+      0:  [0.40, 0.30, 0.30],
+      10: [0.30, 0.40, 0.30],
+      20: [0.30, 0.30, 0.40],
+    };
+
     temporalData = [];
     for (const trt of names){
       const [A,E,I] = totals[trt];
+      const times = [0,10,20];
 
+      // para que sea exacto entero: repartimos con “restos”
+      function splitInt(total){
+        const parts = times.map(t => Math.floor(total * splits[t][0])); // base
+        let used = sum(parts);
+        let rem = total - used;
+        // distribuir rem
+        for (let k=0; k<times.length && rem>0; k++){ parts[k]++; rem--; }
+        return parts;
+      }
+
+      // Vamos a hacer un split simple por estado con reglas fijas (exactas):
+      // A: [ceil, floor, resto], E: [floor, ceil, resto], I: [resto, floor, ceil] (para variar)
       const A0 = Math.floor(A*0.4), A10 = Math.floor(A*0.3), A20 = A - A0 - A10;
       const E0 = Math.floor(E*0.3), E10 = Math.floor(E*0.4), E20 = E - E0 - E10;
       const I0 = Math.floor(I*0.3), I10 = Math.floor(I*0.3), I20 = I - I0 - I10;
@@ -1756,275 +1868,43 @@
   }
 
   // =========================
-  // Firebase: cargar Excel desde Storage
-  // =========================
-  async function loadExcelFromFirebase(storagePath){
-    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
-    if (!window._fb) throw new Error("Firebase no está listo.");
-
-    const { storage, ref, getDownloadURL } = window._fb;
-    const url = await getDownloadURL(ref(storage, storagePath));
-
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`No pude descargar el Excel (${resp.status})`);
-    const buf = await resp.arrayBuffer();
-
-    const wb = XLSX.read(buf, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-    if (!rows.length) throw new Error("El Excel está vacío (hoja 1).");
-
-    const cols = Object.keys(rows[0] || {});
-    const lowerCols = cols.map(c => String(c).toLowerCase().trim());
-
-    const cTrat = cols[lowerCols.indexOf("tratamiento")];
-    const cEst  = cols[lowerCols.indexOf("estado")];
-    const cTime = cols[lowerCols.indexOf("tiempo")];
-    const cVal  = cols[lowerCols.indexOf("valor")];
-
-    if (cTrat && cEst && cTime && cVal){
-      temporalData = rows.map(r => ({
-        tratamiento: String(r[cTrat]).trim(),
-        estado: normalizeEstado(r[cEst]),
-        tiempo: Number(r[cTime]),
-        valor: safeInt(r[cVal])
-      }));
-      return;
-    }
-
-    const estadoCol = cols.find(c => String(c).toLowerCase().trim() === "estado");
-    if (!estadoCol) {
-      throw new Error('Excel Firebase: usa formato temporal (tratamiento, estado, tiempo, valor) o legacy 3×K con columna "estado".');
-    }
-
-    const names = cols.filter(c => c !== estadoCol);
-    const map = { alimentacion: [], excitacion: [], inmovil: [] };
-
-    for (const r of rows){
-      const estado = normalizeEstado(r[estadoCol]);
-      const vals = names.map(n => safeInt(r[n]));
-      if (map[estado]) map[estado] = vals;
-    }
-
-    if (!map.alimentacion.length || !map.excitacion.length || !map.inmovil.length){
-      throw new Error("Legacy 3×K: faltan filas alimentación/excitación/inmovil.");
-    }
-
-    setTemporalDataFrom3xK(names, map.alimentacion, map.excitacion, map.inmovil);
-  }
-
-  // =========================
-  // Bubble window
-  // =========================
-  const STATE_Y = { alimentacion: 3, excitacion: 2, inmovil: 1 };
-
-  function buildBubbleDataByTreatment(data){
-    const byTrt = new Map();
-    for (const r of (data || [])){
-      const trt = String(r.tratamiento || "").trim();
-      if (!trt) continue;
-
-      const st = normalizeEstado(r.estado);
-      if (!STATE_Y[st]) continue;
-
-      const x = Number(r.tiempo);
-      if (!Number.isFinite(x)) continue;
-
-      const v = safeInt(r.valor);
-      if (v <= 0) continue;
-
-      const point = { x, y: STATE_Y[st], v, st };
-      if (!byTrt.has(trt)) byTrt.set(trt, []);
-      byTrt.get(trt).push(point);
-    }
-    return byTrt;
-  }
-
-  function openBubbleWindow(dataForBubbles, title="Burbujas por dieta (tiempo × estado)"){
-    const byTrt = buildBubbleDataByTreatment(dataForBubbles);
-    const diets = Array.from(byTrt.keys());
-
-    if (!diets.length){
-      alert("No hay datos suficientes para burbujas (revisa tratamiento/estado/tiempo/valor).");
-      return;
-    }
-
-    const allV = [];
-    for (const trt of diets){
-      for (const p of byTrt.get(trt)) allV.push(p.v);
-    }
-    const vMax = Math.max(...allV, 1);
-
-    const k = 18 / Math.sqrt(vMax);
-    function rFromV(v){
-      const r = Math.sqrt(v) * k;
-      return Math.max(3, Math.min(18, r));
-    }
-
-    const payload = {};
-    for (const trt of diets){
-      payload[trt] = byTrt.get(trt).map(p => ({
-        x: p.x,
-        y: p.y,
-        r: rFromV(p.v),
-        v: p.v,
-        st: p.st
-      }));
-    }
-
-    const w = window.open("", "_blank", "noopener,noreferrer,width=1200,height=760");
-    if (!w){
-      alert("Tu navegador bloqueó el pop-up. Permite ventanas emergentes para esta página.");
-      return;
-    }
-
-    w.document.open();
-    w.document.write(`<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>${title}</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-  <style>
-    body{ background:#0b1220; color:#e5e7eb; }
-    .card{ background:#0f172a; border:0; border-radius:16px; }
-    .chart-wrap{ position:relative; height:360px; background:#ffffff; border-radius:12px; padding:10px; overflow:hidden; }
-    canvas{ width:100% !important; height:100% !important; background:#ffffff; border-radius:10px; }
-    .form-select{ background:#0b1220; color:#e5e7eb; border-color:#243146; }
-    .small-muted{ color:#94a3b8; }
-  </style>
-</head>
-<body>
-<div class="container py-4">
-  <div class="card p-4 mb-3">
-    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
-      <div>
-        <h1 class="h5 mb-1">${title}</h1>
-        <div class="small-muted">X = tiempo · Y = estado · tamaño = valor</div>
-      </div>
-      <div class="d-flex gap-2 align-items-center">
-        <label class="small-muted">Dieta</label>
-        <select class="form-select" id="dietSel" style="min-width:320px"></select>
-      </div>
-    </div>
-  </div>
-
-  <div class="card p-4">
-    <div class="chart-wrap" style="height:520px">
-      <canvas id="bubbleChart"></canvas>
-    </div>
-    <div class="small-muted mt-2">
-      Tip: pasa el mouse por una burbuja para ver tiempo, estado y valor.
-    </div>
-  </div>
-</div>
-
-<script>
-  const payload = ${JSON.stringify(payload)};
-  const diets = Object.keys(payload);
-
-  const dietSel = document.getElementById("dietSel");
-  diets.forEach(d => {
-    const opt = document.createElement("option");
-    opt.value = d;
-    opt.textContent = d;
-    dietSel.appendChild(opt);
-  });
-
-  const STATE_LABEL = {1:"Inmóvil", 2:"Excitación", 3:"Alimentación"};
-
-  const ctx = document.getElementById("bubbleChart");
-  let ch = null;
-
-  function drawDiet(diet){
-    const pts = (payload[diet] || []);
-    if (ch) ch.destroy();
-
-    ch = new Chart(ctx, {
-      type: "bubble",
-      data: { datasets: [{ label: diet, data: pts, borderWidth: 1 }] },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        parsing: false,
-        plugins: {
-          legend: { display: true, labels: { color: "#111827" } },
-          title: {
-            display: true,
-            text: ["Burbujas por estado (Y) y tiempo (X)", diet],
-            color: "#111827",
-            font: { size: 14, weight: "bold" }
-          },
-          tooltip: {
-            callbacks: {
-              label: (c) => {
-                const p = c.raw;
-                const st = STATE_LABEL[p.y] || "";
-                return \` tiempo=\${p.x} · estado=\${st} · valor=\${p.v}\`;
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            type: "linear",
-            title: { display: true, text: "Tiempo", color: "#111827" },
-            ticks: { color: "#111827" },
-            grid: { color: "#e5e7eb" }
-          },
-          y: {
-            type: "linear",
-            min: 0.5,
-            max: 3.5,
-            ticks: {
-              stepSize: 1,
-              color: "#111827",
-              callback: (v) => STATE_LABEL[v] || ""
-            },
-            title: { display: true, text: "Estado", color: "#111827" },
-            grid: { color: "#e5e7eb" }
-          }
-        }
-      }
-    });
-  }
-
-  dietSel.addEventListener("change", () => drawDiet(dietSel.value));
-  drawDiet(diets[0]);
-<\/script>
-</body>
-</html>`);
-    w.document.close();
-  }
-
-  // =========================
-  // Ejecutar análisis
+  // Ejecutar análisis (fuente única: temporalData)
   // =========================
   async function run(){
     try {
-      if (!Array.isArray(temporalData)) temporalData = [];
+      if (!Array.isArray(temporalData)) temporalData = [];  
       if (isLoadingExcel) return alert("Excel cargado! ya puedes calcular");
+
       if (!temporalData.length) throw new Error('No hay datos. Carga un Excel/CSV o presiona "Cargar ejemplo".');
+
+      console.log("run() temporalData sample:", Array.isArray(temporalData) ? temporalData.slice(0,5) : temporalData);
+
 
       const alpha = Math.min(0.50, Math.max(0.001, Number(document.getElementById('alpha').value) || 0.05));
 
+      // 1) 3×K derivado
+      //const {names, raw3} = build3xKFromTemporal(temporalData);
+      // ✅ aplica filtro de tiempo
       const filteredData = applyTimeFilter(temporalData);
+      
+      // 1) 3×K derivado (filtrado)
       const {names, raw3} = build3xKFromTemporal(filteredData);
 
       if (names.length < 2) throw new Error('Necesitas al menos 2 tratamientos en la serie temporal.');
 
+      // Validación: ningún tratamiento con total 0 (sumas temporales)
       const totals3 = names.map((_,j)=> raw3.feed[j] + raw3.excit[j] + raw3.immob[j]);
       if (totals3.some(t => t === 0)) throw new Error('Hay tratamientos con total 0 en 3×K derivado.');
 
       document.getElementById('obs3kWrap').innerHTML = renderObs3K(names, raw3);
 
+      // 2) Colapsar 3->2 para análisis
       const nofeed = raw3.excit.map((v,i)=> v + raw3.immob[i]);
       const obs = [raw3.feed, nofeed];
       const N = sum(obs[0]) + sum(obs[1]);
       if (N === 0) throw new Error('La tabla derivada está vacía (N=0).');
 
+      // 3) Chi2
       const {chi2, p, dof, E, V} = chiSquare2xK(obs);
 
       const flatE = [...E[0], ...E[1]];
@@ -2046,18 +1926,32 @@
 
       const summaryRows = buildSummary(names, obs, Z, P, Pholm);
       lastSummaryRows = summaryRows;
+
       document.getElementById('propOut').innerHTML = renderProps(summaryRows);
 
+      // Gráfico barras: proporción alimentación
       drawChart(summaryRows, `Fisher–Freeman–Halton (MC): χ²≈${fmt(fisher.chiObs,3)}, p≈${fmtP(fisher.p)}`);
+
+      // Gráfico 100% apilado por suma temporal (3×K)
       drawBehaviorChartFrom3K(names, raw3.feed, raw3.excit, raw3.immob);
 
+      // ✅ Áreas apiladas (100% por tiempo)
+      //const seriesByTrt = buildSeriesFromTemporal(temporalData);
       const seriesByTrt = buildSeriesFromTemporal(filteredData);
       drawAreaChartsPercentByTreatment(seriesByTrt);
       drawAreaChartGlobal(seriesByTrt);
 
+      // =======================================================
+      // 🔹 Gráfico final: mapa temporal (barras recostadas + Fisher)
+      // =======================================================
       const tableTT = buildTimeTreatmentTable(filteredData);
-      drawTimelineGridCanvas(tableTT, alpha, 2);
+      
+      // alpha ya existe arriba en run()
+      drawTimelineGridCanvas(tableTT, alpha, 2); 
+      // 2 = máximo número de brackets por tiempo
 
+
+      // Pares y potencia
       const pairs = pairwiseComparisons(names, obs, alpha);
       document.getElementById('pairsWrap').innerHTML = renderPairsTable(pairs.rows, alpha);
       document.getElementById('pMatWrap').innerHTML  = renderPMatrix(names, pairs.pMat, alpha);
@@ -2074,10 +1968,6 @@
   // =========================
   function clearAll(){
     temporalData = [];
-    lastUploadedFile = null;
-
-    document.getElementById("fileExcel").value = "";
-    document.getElementById("fbFileName").value = "";
 
     document.getElementById('obs3kWrap').innerHTML = '';
     document.getElementById('globalOut').innerHTML = '';
@@ -2093,8 +1983,6 @@
     if (behavChart){ behavChart.destroy(); behavChart = null; }
     if (areaChartGlobal){ areaChartGlobal.destroy(); areaChartGlobal = null; }
     destroyAreaCharts();
-
-    updateTimeControls();
   }
 
   // =========================
@@ -2102,6 +1990,7 @@
   // =========================
   async function uploadExcelToFirebase(file, displayName){
     if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
+
     const { storage, ref, uploadBytes, db, collection, addDoc, serverTimestamp } = window._fb;
 
     const id = crypto.randomUUID();
@@ -2117,356 +2006,473 @@
     });
   }
 
-  async function listExcelCatalog(){
-    if (!currentUser) return [];
-    const { db, collection, getDocs, query, orderBy } = window._fb;
-    const qy = query(collection(db, "excel_files"), orderBy("createdAt", "desc"));
-    const snap = await getDocs(qy);
-    const out = [];
-    snap.forEach(d => out.push({ id: d.id, ...d.data() }));
-    return out;
-  }
-
-  async function refreshCatalog(){
-    const sel = document.getElementById("fbFileSelect");
-    const filesOut = document.getElementById("filesOut");
-
-    if (!currentUser){
-      if (sel) sel.innerHTML = `<option value="">(Inicia sesión para cargar)</option>`;
-      if (filesOut) filesOut.innerHTML = `<div class="small-muted">Inicia sesión para ver tus archivos.</div>`;
-      return;
-    }
-
-    const items = await listExcelCatalog();
-
-    // Select (pane análisis)
-    if (sel){
-      sel.innerHTML = `<option value="">(Selecciona un Excel guardado)</option>`;
-      for (const it of items){
-        const opt = document.createElement("option");
-        opt.value = it.storagePath;
-        opt.textContent = `${it.name || "(sin nombre)"} — ${it.originalName || ""}`;
-        sel.appendChild(opt);
-      }
-    }
-
-    // Tabla (pane archivos)
-    if (filesOut){
-      if (!items.length){
-        filesOut.innerHTML = `<div class="small-muted">No hay archivos guardados todavía.</div>`;
-        return;
-      }
-
-      const rows = items.map(it => {
-        const name = escapeHtml(it.name || "(sin nombre)");
-        const oname = escapeHtml(it.originalName || "");
-        const sp = escapeHtml(it.storagePath || "");
-        return `
-          <tr>
-            <td><b>${name}</b><div class="small-muted">${oname}</div></td>
-            <td><code>${sp}</code></td>
-            <td class="text-nowrap">
-              <button class="btn btn-sm btn-outline-light" data-act="preview" data-id="${it.id}" data-path="${sp}">👀 Preview</button>
-              <button class="btn btn-sm btn-outline-light" data-act="load" data-path="${sp}">📥 Cargar</button>
-              <button class="btn btn-sm btn-outline-light" data-act="download" data-path="${sp}">⬇️ Descargar</button>
-              <button class="btn btn-sm btn-outline-light" data-act="rename" data-id="${it.id}" data-name="${escapeHtml(it.name || "")}">✏️ Renombrar</button>
-              <button class="btn btn-sm btn-outline-light" data-act="replace" data-id="${it.id}" data-path="${sp}">♻️ Reemplazar</button>
-              <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${it.id}" data-path="${sp}">🗑️ Eliminar</button>
-            </td>
-          </tr>
-        `;
-      }).join("");
-
-      filesOut.innerHTML = `
-        <table class="table table-sm align-middle">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Storage path</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      `;
-    }
-  }
-
-  async function previewExcelFromFirebase(storagePath, maxRows=15){
-    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
-    const out = document.getElementById("previewOut");
-    if (!out) return;
-
-    const { storage, ref, getDownloadURL } = window._fb;
-    const url = await getDownloadURL(ref(storage, storagePath));
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`No pude descargar el Excel (${resp.status})`);
-    const buf = await resp.arrayBuffer();
-
-    const wb = XLSX.read(buf, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-    if (!rows.length){
-      out.innerHTML = `<div class="small-muted">El archivo está vacío.</div>`;
-      return;
-    }
-
-    const cols = Object.keys(rows[0] || {});
-    const head = `<thead><tr>${cols.map(c=>`<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>`;
-    const bodyRows = rows.slice(0, maxRows).map(r=>{
-      return `<tr>${cols.map(c=>`<td>${escapeHtml(r[c])}</td>`).join("")}</tr>`;
-    }).join("");
-
-    out.innerHTML = `<table class="table table-sm align-middle">${head}<tbody>${bodyRows}</tbody></table>`;
-  }
-
-  async function renameExcelDoc(docId, currentName){
-    const newName = prompt("Nuevo nombre para este Excel:", currentName || "");
-    if (newName === null) return;
-    const nameTrim = String(newName).trim();
-    if (!nameTrim) return alert("Nombre vacío: cancelado.");
-
-    const { db, doc, updateDoc } = window._fb;
-    await updateDoc(doc(db, "excel_files", docId), { name: nameTrim });
-    await refreshCatalog();
-    alert("✅ Renombrado.");
-  }
-
-  async function deleteExcel(docId, storagePath){
-    if (!confirm("¿Eliminar este Excel? (No se puede deshacer)")) return;
-
-    const { db, doc, deleteDoc, storage, ref, deleteObject } = window._fb;
-    try { await deleteObject(ref(storage, storagePath)); } catch(e){ /* si ya no existe */ }
-    await deleteDoc(doc(db, "excel_files", docId));
-
-    const prev = document.getElementById("previewOut");
-    if (prev) prev.innerHTML = "";
-
-    await refreshCatalog();
-    alert("✅ Eliminado.");
-  }
-
-  async function downloadExcel(storagePath){
-    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
-    const { storage, ref, getDownloadURL } = window._fb;
-    const url = await getDownloadURL(ref(storage, storagePath));
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
-
-  // Reemplazo (sube un archivo nuevo al MISMO storagePath)
-  let pendingReplace = null;
-  async function replaceExcel(storagePath, file){
-    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
-    const { storage, ref, uploadBytes } = window._fb;
-    await uploadBytes(ref(storage, storagePath), file);
-  }
-
   // =========================
   // Auth gating
   // =========================
   let currentUser = null;
 
   function setUiAuthed(isAuthed){
+    // Botones
     document.getElementById("btnLogin")?.classList.toggle("d-none", isAuthed);
     document.getElementById("btnLogout")?.classList.toggle("d-none", !isAuthed);
 
+    // Bloquea acciones si no hay auth
+    const up = document.getElementById("btnUploadFirebase");
     const sel = document.getElementById("fbFileSelect");
-    const up  = document.getElementById("btnUploadFirebase");
-    if (sel) sel.disabled = !isAuthed || isLoadingExcel;
-    if (up)  up.disabled  = !isAuthed || isLoadingExcel;
+    if (up) up.disabled = !isAuthed;
+    if (sel) sel.disabled = !isAuthed;
+
 
     const info = document.getElementById("authInfo");
     if (info){
-      if (!isAuthed) info.textContent = "No autenticado.";
-      else info.textContent = `Autenticado: ${currentUser?.email || currentUser?.displayName || "OK"}`;
+      info.textContent = isAuthed ? `✅ ${currentUser?.email ?? "Usuario"}` : "🔒 Inicia sesión para usar Firebase";
+    }
+
+    // Si no está autenticado, limpia catálogo
+    if (!isAuthed){
+      const sel = document.getElementById("fbFileSelect");
+      if (sel) sel.innerHTML = `<option value="">(Inicia sesión para ver Excels)</option>`;
     }
   }
 
-  function initAuth(){
-    const waitFb = setInterval(() => {
-      if (!window._fb?.auth) return;
-      clearInterval(waitFb);
+  async function ensureAuthReady(){
+    if (!window._fb?.onAuthStateChanged) return;
 
-      const { auth, provider, signInWithPopup, signOut, onAuthStateChanged } = window._fb;
+    const { auth, onAuthStateChanged } = window._fb;
 
-      onAuthStateChanged(auth, async (user) => {
-        currentUser = user || null;
-        setUiAuthed(!!currentUser);
-        await refreshCatalog();
-      });
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user || null;
+      setUiAuthed(!!currentUser);
 
-      document.getElementById("btnLogin")?.addEventListener("click", async () => {
-        try { await signInWithPopup(auth, provider); }
-        catch (e) { alert(e?.message || String(e)); console.error(e); }
-      });
+      // ✅ Solo cuando hay user, carga catálogo
+      if (currentUser){
+        await loadExcelCatalog();
+      }
+    });
+  }
 
-      document.getElementById("btnLogout")?.addEventListener("click", async () => {
-        try { await signOut(auth); }
-        catch (e) { alert(e?.message || String(e)); console.error(e); }
-      });
-    }, 200);
+
+  async function loadExcelCatalog(){
+    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
+
+    if (!window._fb) return;
+
+    const { db, collection, getDocs, query, orderBy } = window._fb;
+    const q = query(collection(db, "excel_files"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+
+    const sel = document.getElementById("fbFileSelect");
+    sel.innerHTML = `<option value="">(Selecciona un Excel)</option>`;
+
+    snap.forEach(doc => {
+      const d = doc.data();
+      const opt = document.createElement("option");
+      opt.value = d.storagePath;
+      opt.textContent = d.name || d.originalName;
+      sel.appendChild(opt);
+    });
   }
 
   // =========================
-  // Handlers UI
+  // Catálogo avanzado (con acciones)
   // =========================
-  document.getElementById("timeMode")?.addEventListener("change", updateTimeControls);
+  let cachedCatalog = [];           // [{id,name,originalName,storagePath,createdAt}]
+  let pendingReplaceDoc = null;     // doc seleccionado para reemplazo
 
-  document.getElementById("fileExcel")?.addEventListener("change", async (e) => {
+  function fmtDate(ts){
+    try{
+      // Firestore Timestamp -> Date
+      const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+      if (!d || isNaN(d.getTime())) return '';
+      return d.toLocaleString();
+    }catch(e){ return ''; }
+  }
+
+  function renderFilesTable(items){
+    if (!items.length){
+      return `<div class="small-muted">No hay archivos guardados.</div>`;
+    }
+
+    const rows = items.map((d) => `
+      <tr>
+        <td>
+          <div><b>${escapeHtml(d.name || d.originalName || '(sin nombre)')}</b></div>
+          <div class="small-muted">${escapeHtml(d.originalName || '')}</div>
+        </td>
+        <td class="small-muted">${escapeHtml(d.storagePath || '')}</td>
+        <td class="small-muted">${escapeHtml(fmtDate(d.createdAt))}</td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-view me-1" data-act="preview" data-id="${d.id}">Ver</button>
+          <button class="btn btn-sm btn-rename me-1" data-act="rename" data-id="${d.id}">Renombrar</button>
+          <button class="btn btn-sm btn-replace me-1" data-act="replace" data-id="${d.id}">Reemplazar</button>
+          <button class="btn btn-sm btn-outline-danger" data-act="delete" data-id="${d.id}">Eliminar</button>
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Storage path</th>
+            <th>Creado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  async function fetchCatalog(){
+    if (!currentUser) throw new Error("Debes iniciar sesión para ver el catálogo.");
+
+    const { db, collection, getDocs, query, orderBy } = window._fb;
+    const q = query(collection(db, "excel_files"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+
+    const items = [];
+    snap.forEach(docSnap => {
+      const d = docSnap.data();
+      items.push({
+        id: docSnap.id,
+        name: d.name || "",
+        originalName: d.originalName || "",
+        storagePath: d.storagePath || "",
+        createdAt: d.createdAt || null
+      });
+    });
+
+    return items;
+  }
+
+  async function refreshFilesTab(){
+    const out = document.getElementById("filesOut");
+    const prev = document.getElementById("previewOut");
+    if (prev) prev.innerHTML = "";
+
+    if (!out) return;
+    if (!currentUser){
+      out.innerHTML = `<div class="small-muted">🔒 Inicia sesión para ver archivos.</div>`;
+      return;
+    }
+
+    out.innerHTML = `<div class="small-muted">Cargando…</div>`;
+    cachedCatalog = await fetchCatalog();
+    out.innerHTML = renderFilesTable(cachedCatalog);
+
+    // enganchar acciones
+    out.querySelectorAll("button[data-act]").forEach(btn=>{
+      btn.addEventListener("click", async () => {
+        const act = btn.dataset.act;
+        const id  = btn.dataset.id;
+        const item = cachedCatalog.find(x => x.id === id);
+        if (!item) return;
+
+        try{
+          if (act === "preview") await previewExcel(item);
+          if (act === "rename")  await renameExcel(item);
+          if (act === "delete")  await deleteExcel(item);
+          if (act === "replace") await startReplaceExcel(item);
+        }catch(e){
+          alert(e?.message ?? String(e));
+          console.error(e);
+        }
+      });
+    });
+  }
+
+  async function previewExcel(item){
+    const prev = document.getElementById("previewOut");
+    if (!prev) return;
+    prev.innerHTML = `<div class="small-muted">Descargando y leyendo…</div>`;
+
+    const { storage, ref, getDownloadURL } = window._fb;
+    const url = await getDownloadURL(ref(storage, item.storagePath));
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`No pude descargar (${resp.status})`);
+    const buf = await resp.arrayBuffer();
+
+    // Leer XLSX
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+    if (!rows.length){
+      prev.innerHTML = `<div class="small-muted">Archivo vacío o sin datos en hoja 1.</div>`;
+      return;
+    }
+
+    // Render: primeras 50 filas
+    const maxRows = 50;
+    const show = rows.slice(0, maxRows);
+    const cols = Object.keys(show[0] || {});
+
+    let html = `<div class="small-muted mb-2"><b>${escapeHtml(item.name || item.originalName)}</b> — mostrando ${show.length} de ${rows.length} filas</div>`;
+    html += `<table class="table table-sm align-middle"><thead><tr>${cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>`;
+
+    for (const r of show){
+      html += `<tr>${cols.map(c=>`<td>${escapeHtml(r[c])}</td>`).join('')}</tr>`;
+    }
+    html += `</tbody></table>`;
+
+    prev.innerHTML = html;
+  }
+
+  async function renameExcel(item){
+    const newName = prompt("Nuevo nombre para mostrar:", item.name || item.originalName || "");
+    if (!newName) return;
+
+    const { db, doc, updateDoc, serverTimestamp } = window._fb;
+    await updateDoc(doc(db, "excel_files", item.id), {
+      name: newName,
+      updatedAt: serverTimestamp()
+    });
+
+    alert("✅ Renombrado");
+    await refreshFilesTab();
+    await loadExcelCatalog(); // mantiene tu select también
+  }
+
+  async function deleteExcel(item){
+    const ok = confirm(`¿Seguro que deseas ELIMINAR?\n\n${item.name || item.originalName}\n\nEsto borra Storage + Firestore.`);
+    if (!ok) return;
+
+    const { storage, ref, deleteObject, db, doc, deleteDoc } = window._fb;
+
+    // 1) borrar archivo en storage
+    await deleteObject(ref(storage, item.storagePath));
+
+    // 2) borrar registro en firestore
+    await deleteDoc(doc(db, "excel_files", item.id));
+
+    alert("🗑️ Eliminado");
+    await refreshFilesTab();
+    await loadExcelCatalog();
+  }
+
+  async function startReplaceExcel(item){
+    pendingReplaceDoc = item;
+    const inp = document.getElementById("replaceFileInput");
+    if (!inp) throw new Error("No encuentro replaceFileInput.");
+    inp.value = "";
+    inp.click();
+  }
+
+  // Reemplazo: cuando eliges el archivo nuevo
+  document.getElementById("replaceFileInput")?.addEventListener("change", async (e) => {
+    const f = e.target.files?.[0];
+    if (!f || !pendingReplaceDoc) return;
+
+    try{
+      const ok = confirm(`Vas a reemplazar el contenido del archivo:\n\n${pendingReplaceDoc.name || pendingReplaceDoc.originalName}\n\n¿Continuar?`);
+      if (!ok) return;
+
+      const { storage, ref, uploadBytes, db, doc, updateDoc, serverTimestamp } = window._fb;
+
+      // sube al MISMO storagePath (reemplaza el contenido)
+      await uploadBytes(ref(storage, pendingReplaceDoc.storagePath), f);
+
+      // opcional: actualiza metadata
+      await updateDoc(doc(db, "excel_files", pendingReplaceDoc.id), {
+        originalName: f.name,
+        updatedAt: serverTimestamp()
+      });
+
+      alert("✅ Reemplazado");
+      pendingReplaceDoc = null;
+      await refreshFilesTab();
+      await loadExcelCatalog();
+    }catch(err){
+      alert(err?.message ?? String(err));
+      console.error(err);
+    }finally{
+      e.target.value = "";
+    }
+  });
+
+
+  async function loadExcelFromFirebase(storagePath){
+    if (!currentUser) throw new Error("Debes iniciar sesión para usar Firebase.");
+    if (!window._fb) throw new Error("Firebase no está listo.");
+
+    const { storage, ref, getDownloadURL } = window._fb;
+
+    // 1) URL firmada
+    const url = await getDownloadURL(ref(storage, storagePath));
+
+    // 2) Descargar bytes como ArrayBuffer (estable)
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`No pude descargar (${resp.status})`);
+    const buf = await resp.arrayBuffer();
+
+    // 3) Reconstruir File
+    const filename = storagePath.split("/").pop() || "firebase_file";
+    const ext = (filename.split(".").pop() || "").toLowerCase();
+
+    let mime = "application/octet-stream";
+    if (ext === "csv")  mime = "text/csv";
+    if (ext === "xlsx") mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    if (ext === "xls")  mime = "application/vnd.ms-excel";
+
+    const fakeFile = new File([buf], filename, { type: mime });
+
+    lastUploadedFile = fakeFile;
+
+    await loadExcelFile(fakeFile);
+    await run();
+  }
+
+
+
+
+  //==================
+  // Nueva sección
+  //==================
+    
+  document.getElementById("btnLogin")?.addEventListener("click", async () => {
+    try{
+      const { auth, provider, signInWithPopup } = window._fb;
+      await signInWithPopup(auth, provider);
+    }catch(e){
+      alert(e?.message ?? String(e));
+      console.error(e);
+    }
+  });
+
+  document.getElementById("btnLogout")?.addEventListener("click", async () => {
+    try{
+      const { auth, signOut } = window._fb;
+      await signOut(auth);
+      clearAll();
+    }catch(e){
+      alert(e?.message ?? String(e));
+      console.error(e);
+    }
+  });
+
+
+  // =========================
+  // Eventos
+  // =========================
+
+  // Botón "Actualizar lista" en pestaña Archivos
+  document.getElementById("btnRefreshCatalog")?.addEventListener("click", async () => {
+    try { await refreshFilesTab(); }
+    catch(e){ alert(e?.message ?? String(e)); console.error(e); }
+  });
+
+  // Cuando el usuario abre la pestaña "Archivos", refresca
+  document.getElementById("tab-archivos")?.addEventListener("shown.bs.tab", async () => {
+    try { await refreshFilesTab(); }
+    catch(e){ console.error(e); }
+  });
+
+
+
+    // cuando subes un Excel local
+  document.getElementById('fileExcel').addEventListener('change', async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    lastUploadedFile = f;
-
-    try {
-      setLoadingExcel(true);
+    try{
+      lastUploadedFile = f;
       await loadExcelFile(f);
-      updateTimeControls();
-      alert("✅ Excel/CSV cargado. Ya puedes presionar Calcular.");
-    } catch (err) {
-      alert(err?.message ?? String(err));
-      console.error(err);
-    } finally {
-      setLoadingExcel(false);
+      await run();
+    }catch(err){
+      alert(err.message);
+    
     }
   });
 
-  document.getElementById("fbFileSelect")?.addEventListener("change", async (e) => {
-    const storagePath = e.target.value;
-    if (!storagePath) return;
+  // guardar en Firebase
+  document.getElementById('btnUploadFirebase').addEventListener('click', async () => {
+    if (!lastUploadedFile) return alert("Primero carga un Excel.");
+    const name = document.getElementById("fbFileName").value.trim();
+    if (!name) return alert("Pon un nombre.");
 
-    try {
+    await uploadExcelToFirebase(lastUploadedFile, name);
+    alert("✅ Excel guardado en Firebase");
+    await loadExcelCatalog();
+  });
+
+  // seleccionar desde Firebase
+  document.getElementById('fbFileSelect').addEventListener('change', async (e) => {
+    const path = e.target.value;
+    if (!path) return;
+
+    try{
+      if (!currentUser) throw new Error("Debes iniciar sesión.");
+
       setLoadingExcel(true);
-      await loadExcelFromFirebase(storagePath);
-      updateTimeControls();
-      alert("✅ Excel cargado desde Firebase. Ya puedes presionar Calcular.");
-    } catch (err) {
-      alert(err?.message ?? String(err));
+      clearAll();
+      temporalData = [];
+
+      await loadExcelFromFirebase(path);
+
+    }catch(err){
+      alert("Error al cargar Excel desde Firebase: " + (err?.message ?? String(err)));
       console.error(err);
-    } finally {
+    }finally{
       setLoadingExcel(false);
     }
   });
 
-  document.getElementById("btnExample")?.addEventListener("click", () => {
-    loadExample();
+  document.getElementById("timeMode")?.addEventListener("change", () => {
     updateTimeControls();
-    alert("✅ Ejemplo cargado. Ya puedes presionar Calcular.");
+  });
+  
+  document.getElementById("timeSingle")?.addEventListener("change", () => {
+    // opcional: auto-run si ya hay data
+    // if (temporalData?.length) run();
+  });
+  
+  document.getElementById("timeFrom")?.addEventListener("change", () => {
+    // if (temporalData?.length) run();
+  });
+  
+  document.getElementById("timeTo")?.addEventListener("change", () => {
+    // if (temporalData?.length) run();
   });
 
-  document.getElementById("btnClear")?.addEventListener("click", clearAll);
 
-  document.getElementById("btnRun")?.addEventListener("click", run);
 
-  document.getElementById("btnDownloadCSV")?.addEventListener("click", () => {
-    if (!lastSummaryRows) return alert("Primero ejecuta Calcular.");
+
+  // cargar catálogo al iniciar
+  window.addEventListener("load", async () => {
+    // Espera a que el módulo Firebase termine y exponga window._fb
+    for (let i = 0; i < 100; i++) {
+      if (window._fb?.auth) break;
+      await new Promise(r => setTimeout(r, 30));
+    }
+    await ensureAuthReady();
+  });
+
+
+
+  document.getElementById('btnClear').addEventListener('click', () => { clearAll(); });
+
+  document.getElementById('btnExample').addEventListener('click', () => {
+    loadExample();
+    run();
+  });
+
+  document.getElementById('btnRun').addEventListener('click', run);
+
+  document.getElementById('btnDownloadCSV').addEventListener('click', () => {
+    if (!lastSummaryRows) return alert('Primero presiona Calcular.');
     downloadCSV(lastSummaryRows);
   });
 
-  document.getElementById("btnBubbles")?.addEventListener("click", () => {
-    if (!temporalData?.length) return alert("Primero carga datos (Excel/CSV o ejemplo).");
-    const filteredData = applyTimeFilter(temporalData);
-    openBubbleWindow(filteredData, "Burbujas por dieta (tiempo × estado)");
-  });
 
-  document.getElementById("btnUploadFirebase")?.addEventListener("click", async () => {
-    try {
-      if (!currentUser) throw new Error("Inicia sesión para guardar en Firebase.");
-      if (!lastUploadedFile) throw new Error("Primero carga un Excel/CSV local.");
-      const name = String(document.getElementById("fbFileName")?.value || "").trim();
-      if (!name) throw new Error("Escribe un nombre para guardar en Firebase.");
 
-      setLoadingExcel(true);
-      await uploadExcelToFirebase(lastUploadedFile, name);
-      await refreshCatalog();
-      alert("✅ Guardado en Firebase.");
-    } catch (e) {
-      alert(e?.message || String(e));
-      console.error(e);
-    } finally {
-      setLoadingExcel(false);
-    }
-  });
-
-  document.getElementById("btnRefreshCatalog")?.addEventListener("click", async () => {
-    try {
-      await refreshCatalog();
-      alert("✅ Lista actualizada.");
-    } catch (e) {
-      alert(e?.message || String(e));
-      console.error(e);
-    }
-  });
-
-  // Delegación de eventos para la tabla de archivos
-  document.getElementById("filesOut")?.addEventListener("click", async (ev) => {
-    const btn = ev.target.closest("button[data-act]");
-    if (!btn) return;
-
-    const act = btn.getAttribute("data-act");
-    const id  = btn.getAttribute("data-id");
-    const sp  = btn.getAttribute("data-path");
-    const nm  = btn.getAttribute("data-name") || "";
-
-    try {
-      if (act === "preview"){
-        await previewExcelFromFirebase(sp, 20);
-      }
-      if (act === "load"){
-        setLoadingExcel(true);
-        await loadExcelFromFirebase(sp);
-        updateTimeControls();
-        alert("✅ Cargado en el análisis. Ya puedes presionar Calcular.");
-        setLoadingExcel(false);
-      }
-      if (act === "download"){
-        await downloadExcel(sp);
-      }
-      if (act === "rename"){
-        await renameExcelDoc(id, nm);
-      }
-      if (act === "delete"){
-        await deleteExcel(id, sp);
-      }
-      if (act === "replace"){
-        pendingReplace = { storagePath: sp };
-        document.getElementById("replaceFileInput")?.click();
-      }
-    } catch (e) {
-      alert(e?.message || String(e));
-      console.error(e);
-    } finally {
-      setLoadingExcel(false);
-    }
-  });
-
-  // Handler para input oculto de reemplazo
-  document.getElementById("replaceFileInput")?.addEventListener("change", async (e) => {
-    const f = e.target.files?.[0];
-    if (!f || !pendingReplace?.storagePath) return;
-
-    try {
-      setLoadingExcel(true);
-      await replaceExcel(pendingReplace.storagePath, f);
-      pendingReplace = null;
-      e.target.value = "";
-      await refreshCatalog();
-      alert("✅ Reemplazado (mismo path).");
-    } catch (err) {
-      alert(err?.message || String(err));
-      console.error(err);
-    } finally {
-      setLoadingExcel(false);
-    }
-  });
-
-  // =========================
-  // Init
-  // =========================
-  updateTimeControls();
-  initAuth();
-  setUiAuthed(false);
 </script>
 
+
+
+<!-- Bootstrap JS (necesario para tabs) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+ 
+
