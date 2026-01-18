@@ -1595,8 +1595,6 @@
     }
   }
 
-  // ✅ Burbujas por tratamiento: tiempo (X) vs estado (Y)
-  drawBubbleChartsByTreatment(filteredData);
 
   //nuevo gráfico
 
@@ -2189,9 +2187,6 @@
       //const {names, raw3} = build3xKFromTemporal(temporalData);
       // ✅ aplica filtro de tiempo
       const filteredData = applyTimeFilter(temporalData);
-
-      // 👉 AQUÍ va el llamado a burbujas
-      //drawBubbleChartsByTreatment(filteredData);
       
       // 1) 3×K derivado (filtrado)
       const {names, raw3} = build3xKFromTemporal(filteredData);
