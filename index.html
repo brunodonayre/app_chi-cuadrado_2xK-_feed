@@ -1217,16 +1217,16 @@
         r.valor > 0
       );
 
-    // ✅ AQUÍ MISMO va el máximo GLOBAL
-    const globalMaxV = Math.max(
-      1,
-      ...clean.map(r => Number(r.valor)).filter(Number.isFinite)
-    );
-  
     if (!clean.length){
       wrap.innerHTML = `<div class="small-muted">No hay datos válidos para burbujas.</div>`;
       return;
     }
+
+    // ✅ AQUÍ MISMO va el máximo GLOBAL
+    //const globalMaxV = Math.max(1,...clean.map(r => Number(r.valor)).filter(Number.isFinite));
+     // ✅ ESCALA GLOBAL (solo burbujas)
+    const globalVals = clean.map(r => Number(r.valor)).filter(Number.isFinite);
+    const globalMaxV = Math.max(1, ...globalVals);
   
     // ✅ categorías X (tiempos) ordenadas numéricamente
     const times = [...new Set(clean.map(r => r.tiempo))]
