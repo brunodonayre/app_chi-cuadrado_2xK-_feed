@@ -1346,10 +1346,28 @@
             y: {
               type: "category",
               labels: yCats,
-              title: { display: true, text: "Estado", color: "#111827" },
-              ticks: { color: "#111827" },
-              grid: { color: "#e5e7eb" }
+            
+              offset: true,        // 👈 CLAVE: separa las bandas
+              weight: 2,           // 👈 CLAVE: hace cada fila más alta
+            
+              title: {
+                display: true,
+                text: "Estado",
+                color: "#111827"
+              },
+            
+              ticks: {
+                color: "#111827",
+                padding: 18         // 👈 espacio arriba/abajo del texto
+              },
+            
+              grid: {
+                drawBorder: false,
+                borderDash: [4, 4], // 👈 línea punteada como tu ejemplo
+                color: "#93c5fd"
+              }
             }
+
           }
         }
       });
